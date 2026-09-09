@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyDJ 智慧選股與當沖診斷系統</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 頂部導航列 -->
+        <header class="navbar">
+            <div class="nav-brand" id="navBrandHome" style="cursor: pointer;" title="點擊回到智慧選股">
+                <div class="logo-badge">
+                    <span class="logo-icon">📈</span>
+                </div>
+                <div class="brand-text">
+                    <h1>MoneyDJ 智慧選股與量化診斷終端</h1>
+                    <span class="subtitle">智慧選股 × 波段手法 × 當沖獲利術 × 大戶隔日沖實戰系統</span>
+                </div>
+            </div>
+            <div class="nav-actions">
+                <button class="btn btn-primary btn-sm glow-on-hover" id="btnGoHome" title="點擊直接回到智慧選股">
+                    <span class="icon">🏠</span> 智慧選股
+                </button>
+                <span class="live-status" id="serverStatus">
+                    <span class="status-dot pulse"></span>
+                    <span class="status-text">伺服器連線正常</span>
+                </span>
+                <button class="btn btn-secondary btn-sm" id="btnOpenBookmarklet">
+                    <span class="icon">🔖</span> 瀏覽器書籤小工具
+                </button>
+                <a href="https://concords.moneydj.com/z/zk/zkf/zkExpert_F.asp#" target="_blank" class="btn btn-outline btn-sm" id="btnDirectMoneyDJ">
+                    <span class="icon">🔗</span> 前往 MoneyDJ 原站
+                </a>
+            </div>
+        </header>
+
+        <!-- 四大核心功能切換分頁標籤列 -->
+        <nav class="strategy-tabs-bar">
+            <button class="tab-nav-btn active" id="tabBtnSwing" data-tab="swing">
+                <span class="tab-icon">🏠</span>
+                <span class="tab-title">智慧選股</span>
+                <span class="tab-badge" id="badgeSwingCount">7 檔符合</span>
+            </button>
+            <button class="tab-nav-btn" id="tabBtnWaveStrategy" data-tab="waveStrategy">
+                <span class="tab-icon">🌊</span>
+                <span class="tab-title">波段手法指標</span>
+                <span class="tab-badge" id="badgeWaveCount">7 檔波段</span>
+            </button>
+            <button class="tab-nav-btn" id="tabBtnDayTrading" data-tab="dayTrading">
+                <span class="tab-icon">⚡</span>
+                <span class="tab-title">當沖指標</span>
+                <span class="tab-badge" id="badgeDayTradingCount">Stock01 獲利術</span>
+            </button>
+            <button class="tab-nav-btn" id="tabBtnOvernight" data-tab="overnight">
+                <span class="tab-icon">🏛️</span>
+                <span class="tab-title">大戶隔日沖</span>
+                <span class="tab-badge" id="badgeOvernightCount">隔日對策</span>
+            </button>
+        </nav>
+
+
+
+        <!-- 主體內容區 -->
+        <main class="main-container">
+
+            <!-- ======================================================== -->
+            <!-- 分頁 1: 主頁 (篩選結果) ─ MoneyDJ 多因子智慧選股清單 -->
+            <!-- ======================================================== -->
+            <div id="viewSwing" class="tab-view active">
+                <!-- 篩選條件設定卡片 -->
+                <section class="control-panel glass-card">
+                    <div class="panel-header">
+                        <div class="panel-title-wrap">
+                            <h2>🎯 MoneyDJ 波段策略篩選條件設定</h2>
+                            <p class="panel-desc">已自動載入您指定的技術面突破、主力籌碼集中與營收成長條件，可隨時微調參數。</p>
+                        </div>
+                        <div class="panel-tools">
+                            <button class="btn btn-ghost btn-sm" id="btnResetDefault" title="恢復預設參數">
+                                <span class="icon">↺</span> 恢復預設值
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="conditions-grid">
+                        <!-- 條件 1: 技術面 -->
+                        <div class="condition-card active" id="cardTech">
+                            <div class="condition-badge tech-badge">
+                                <span class="badge-dot"></span> 技術面
+                            </div>
+                            <div class="condition-body">
+                                <div class="checkbox-row">
+                                    <label class="custom-checkbox">
+                                        <input type="checkbox" id="condTechDIF" checked>
+                                        <span class="checkmark"></span>
+                                        <span class="label-text">DIF值 向上突破 MACD（週）</span>
+                                    </label>
+                                </div>
+                                <div class="condition-hint">
+                                    週線級別 MACD 黃金交叉訊號，象徵中長線多方波段起漲或趨勢轉強動能。
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 條件 2: 籌碼面 -->
+                        <div class="condition-card active" id="cardChip">
+                            <div class="condition-badge chip-badge">
+                                <span class="badge-dot"></span> 籌碼面 (第 1 項)
+                            </div>
+                            <div class="condition-body">
+                                <div class="inline-inputs-row" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                                    <label class="custom-checkbox" style="margin-right:2px; display:inline-flex; align-items:center; cursor:pointer;" title="勾選以納入主力買超篩選條件">
+                                        <input type="checkbox" id="condChipEnable" checked>
+                                        <span class="checkmark"></span>
+                                    </label>
+                                    <span class="prefix-text">近</span>
+                                    <div class="input-wrap sm">
+                                        <input type="number" id="inputChipDays" value="20" min="1" max="120" step="1">
+                                        <span class="unit">日</span>
+                                    </div>
+                                    <span class="mid-text">券商主力買超大於</span>
+                                    <div class="input-wrap md">
+                                        <input type="number" id="inputChipVol" value="200" min="10" max="100000" step="50">
+                                        <span class="unit">張</span>
+                                    </div>
+                                </div>
+                                <div class="condition-hint">
+                                    鎖定特定券商主力近 1 個月持續重壓卡位、籌碼穩定度高的強勢股。
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 條件 3: 營收獲利面 -->
+                        <div class="condition-card active" id="cardRev">
+                            <div class="condition-badge rev-badge">
+                                <span class="badge-dot"></span> 營收獲利面 (第 15 項)
+                            </div>
+                            <div class="condition-body">
+                                <div class="inline-inputs-row" style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                                    <label class="custom-checkbox" style="margin-right:2px; display:inline-flex; align-items:center; cursor:pointer;" title="勾選以納入營收月成長篩選條件">
+                                        <input type="checkbox" id="condRevEnable" checked>
+                                        <span class="checkmark"></span>
+                                    </label>
+                                    <span class="prefix-text">近</span>
+                                    <div class="input-wrap sm">
+                                        <input type="number" id="inputRevMonths" value="3" min="1" max="12" step="1">
+                                        <span class="unit">月</span>
+                                    </div>
+                                    <span class="mid-text">平均營收月成長率大於</span>
+                                    <div class="input-wrap sm">
+                                        <input type="number" id="inputRevPct" value="1" min="0" max="500" step="0.5">
+                                        <span class="unit">%</span>
+                                    </div>
+                                </div>
+                                <div class="condition-hint">
+                                    連續季度的月營收保持向上推升動能，基本面營運動能持續發酵。
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 底部操作列與過濾項 -->
+                    <div class="panel-footer">
+                        <div class="footer-filter">
+                            <label class="custom-checkbox">
+                                <input type="checkbox" id="condFilterLow" checked>
+                                <span class="checkmark"></span>
+                                <span class="label-text">過濾股價 5 元以下、5 日均量在 500 張以下的低流動性個股</span>
+                            </label>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button class="btn btn-primary btn-lg glow-on-hover" id="btnRunFilter">
+                                <span class="btn-spinner" id="filterSpinner" style="display:none;"></span>
+                                <span class="icon" id="filterIcon">⚡</span>
+                                <span class="text" id="filterBtnText">開始篩選</span>
+                            </button>
+                            <button class="btn btn-success btn-lg" id="btnExportCSV" disabled>
+                                <span class="icon">📥</span>
+                                <span class="text">匯出 CSV 檔</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 波段篩選統計 -->
+                <section class="results-meta-section" id="resultsMetaSection" style="display: none;">
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-icon">🎯</div>
+                            <div class="metric-content">
+                                <div class="metric-label">波段符合檔數</div>
+                                <div class="metric-val" id="metricTotalCount">0 <span class="unit">檔</span></div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon">📈</div>
+                            <div class="metric-content">
+                                <div class="metric-label">上漲 / 下跌家數</div>
+                                <div class="metric-val">
+                                    <span class="stock-up" id="metricUpCount">0</span>
+                                    <span class="divider">/</span>
+                                    <span class="stock-down" id="metricDownCount">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon">📊</div>
+                            <div class="metric-content">
+                                <div class="metric-label">平均漲跌幅</div>
+                                <div class="metric-val" id="metricAvgChange">+0.00%</div>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-icon">💼</div>
+                            <div class="metric-content">
+                                <div class="metric-label">主力買超總量</div>
+                                <div class="metric-val" id="metricTotalMajorBuy">0 <span class="unit">張</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 智慧選股結果表格 -->
+                <section class="results-table-section glass-card" id="resultsTableSection">
+                    <div class="table-header-bar">
+                        <div class="table-title-wrap">
+                            <h3>📋 智慧選股結果清單</h3>
+                            <span class="badge badge-info" id="tableCountBadge">尚未篩選</span>
+                            <span class="timestamp-text" id="queryTimestamp"></span>
+                        </div>
+                        <div class="table-actions">
+                            <div class="search-box">
+                                <span class="search-icon">🔍</span>
+                                <input type="text" id="tableSearchInput" placeholder="搜尋代號或股票名稱..." disabled>
+                            </div>
+                            <button class="btn btn-outline btn-sm" id="btnOpenTargetUrl" style="display:none;">
+                                <span class="icon">↗</span> MoneyDJ 原始結果頁
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 狀態提示 -->
+                    <div class="table-state-box" id="tableStateBox">
+                        <div class="empty-state" id="stateInitial">
+                            <div class="state-icon">🚀</div>
+                            <h4>點擊「開始篩選」按鈕執行多因子篩選</h4>
+                            <p>系統將即時查詢 MoneyDJ 資料庫，比對週 MACD 突破、主力買超 200 張與月營收雙重成長個股。</p>
+                        </div>
+                        <div class="loading-state" id="stateLoading" style="display:none;">
+                            <div class="loading-spinner"></div>
+                            <h4>正在連線 MoneyDJ 抓取最新選股資料...</h4>
+                            <p>正在比對技術面指標、計算主力籌碼買賣超與營收月成長率...</p>
+                        </div>
+                        <div class="error-state" id="stateError" style="display:none;">
+                            <div class="state-icon">⚠️</div>
+                            <h4>抓取失敗</h4>
+                            <p id="errorMessageText">無法連接至選股資料來源，請確認後端服務是否已啟動。</p>
+                            <button class="btn btn-primary btn-sm" id="btnRetry">重新整理重試</button>
+                        </div>
+                    </div>
+
+                    <!-- 智慧選股表格容器 -->
+                    <div class="table-responsive" id="tableContainer" style="display:none;">
+                        <table class="stock-table" id="stockDataTable">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" style="width: 56px;">
+                                        <label class="custom-checkbox sm" style="display:inline-flex; align-items:center; gap:4px; margin:0; cursor:pointer;" title="全選/取消全選波段標的">
+                                            <input type="checkbox" id="checkAllSwing">
+                                            <span class="checkmark"></span>
+                                            <span style="color:#38bdf8; font-weight:700;">波段</span>
+                                        </label>
+                                    </th>
+                                    <th data-sort="stkCode" class="sortable">代號 <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="stkName" class="sortable">股票名稱 <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="closePrice" class="sortable text-right">收盤價 <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="change" class="sortable text-right">漲跌 <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="changePct" class="sortable text-right">漲跌幅 <span class="sort-arrow">↕</span></th>
+                                    <th class="text-center" style="min-width: 110px; max-width: 130px;">MACD(12)走勢</th>
+                                    <th data-sort="difWeek" class="sortable text-right">DIF(週) <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="macdWeek" class="sortable text-right">MACD(週) <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="majorBuy" class="sortable text-right" id="thMajorBuy">主力買超(張) <span class="sort-arrow">↕</span></th>
+                                    <th data-sort="revGrowth" class="sortable text-right" id="thRevGrowth">營收成長 rev(%) <span class="sort-arrow">↕</span></th>
+                                    <th class="text-center">看盤</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stockTableBody">
+                                <!-- JS 動態填入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ======================================================== -->
+            <!-- 分頁 2: 波段手法指標 (波段 6 大核心手法指標實戰分析) -->
+            <!-- ======================================================== -->
+            <div id="viewWaveStrategy" class="tab-view" style="display:none;">
+                <!-- 規則說明 Banner -->
+                <section class="wave-strategy-banner glass-card">
+                    <div class="banner-title-box">
+                        <div class="title-with-pill">
+                            <h2>🌊 波段 6 大核心手法指標實戰分析</h2>
+                            <span class="badge badge-cyan" id="badgeWaveTableTitle">波段精選</span>
+                        </div>
+                        <p class="banner-desc">依據技術面週線黃金交叉、均線多頭排列、主力連續鎖碼、營收成長與量價結構，綜合評估波段佈局位階與停利停損 SOP。</p>
+                    </div>
+                    <div class="banner-rules-grid">
+                        <div class="rule-chip">
+                            <span class="chip-num">①</span>
+                            <div class="chip-body">
+                                <strong>週 MACD 金叉</strong>
+                                <span>DIF 突破 MACD 且紅柱遞增，波段起漲確認</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">②</span>
+                            <div class="chip-body">
+                                <strong>均線多頭排列</strong>
+                                <span>站穩 20MA（月線）與 60MA（季線），中長多掌控</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">③</span>
+                            <div class="chip-body">
+                                <strong>主力連續鎖碼</strong>
+                                <span>近 20 日主力買超大於 200 張，大戶實質卡位</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">④</span>
+                            <div class="chip-body">
+                                <strong>營收成長動能</strong>
+                                <span>近 3 個月營收月增率 (MoM) > 1%，基本面有撐</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">⑤</span>
+                            <div class="chip-body">
+                                <strong>量價攻擊型態</strong>
+                                <span>出量攻擊突破頸線，量縮拉回回測守均線</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">⑥</span>
+                            <div class="chip-body">
+                                <strong>出場 / 停利 SOP</strong>
+                                <span>未破月線波段續抱，跌破 20MA 或週死叉停利</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 波段指標統計摘要 -->
+                <section class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">🌊</div>
+                        <div class="metric-content">
+                            <div class="metric-label">波段勾選入選</div>
+                            <div class="metric-val" id="waveMetricSelected">0 <span class="unit">檔</span></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">🔥</div>
+                        <div class="metric-content">
+                            <div class="metric-label">強勢多頭評級</div>
+                            <div class="metric-val text-up" id="waveMetricStrong">0 <span class="unit">檔</span></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">💼</div>
+                        <div class="metric-content">
+                            <div class="metric-label">主力平均買超</div>
+                            <div class="metric-val" id="waveMetricAvgBuy">0 <span class="unit">張</span></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">📈</div>
+                        <div class="metric-content">
+                            <div class="metric-label">平均營收月增</div>
+                            <div class="metric-val text-up" id="waveMetricAvgRev">+0.0%</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 波段手法分析清單表格 -->
+                <section class="results-table-section glass-card">
+                    <div class="table-header-bar">
+                        <div class="table-title-wrap">
+                            <h3>📋 波段手法指標實戰檢驗表</h3>
+                            <span class="badge badge-info" id="waveTableBadge">載入中...</span>
+                        </div>
+                        <div class="table-actions">
+                            <div class="search-box">
+                                <span class="search-icon">🔍</span>
+                                <input type="text" id="waveSearchInput" placeholder="搜尋代號或名稱...">
+                            </div>
+                            <button class="btn btn-outline btn-sm" id="btnWaveToggleAll">
+                                <span>顯示模式：全部標的</span>
+                            </button>
+                            <button class="btn btn-success btn-sm" id="btnExportWaveCSV">
+                                <span class="icon">📥</span> 匯出波段分析 CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="stock-table wave-table" id="waveDataTable">
+                            <thead>
+                                <tr>
+                                    <th>股票</th>
+                                    <th class="text-right">收盤/漲跌</th>
+                                    <th>①週MACD</th>
+                                    <th>②均線架構</th>
+                                    <th class="text-right">③主力買超</th>
+                                    <th class="text-right">④營收月增 (rev值)</th>
+                                    <th>⑤量價型態</th>
+                                    <th class="text-center">⑥波段指引</th>
+                                    <th class="text-right">防守點位</th>
+                                    <th class="text-center">MACD走勢</th>
+                                </tr>
+                            </thead>
+                            <tbody id="waveTableBody">
+                                <!-- JS 動態填入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+
+            <!-- ======================================================== -->
+            <!-- 分頁 2: 當沖指標 (Stock01 獲利術 6 大指標實戰診斷) -->
+            <!-- ======================================================== -->
+            <div id="viewDayTrading" class="tab-view" style="display:none;">
+                <!-- 規則說明 Banner -->
+                <section class="day-trading-banner glass-card">
+                    <div class="banner-title-box">
+                        <div class="title-with-pill">
+                            <h2>⚡ 當沖 6 大獲利指標實戰診斷</h2>
+                            <span class="badge badge-purple">Stock01.pdf 獲利方法</span>
+                        </div>
+                        <p class="banner-desc">已排除舊主力手法與低成本法，依專屬規則深度核對：① 均價線(5分K)、② 江波圖(5分K)、③ K線(5分K)、④ 內外盤(當日)、⑤ 差異分析(5分K)、⑥ 主力手法(參考券商分點)。</p>
+                    </div>
+                    <div class="banner-rules-grid">
+                        <div class="rule-chip">
+                            <span class="chip-num">①</span>
+                            <div class="chip-body">
+                                <strong>均價線</strong>
+                                <span>當日 5分K（跌破均價空 / 站上均價多）</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">②</span>
+                            <div class="chip-body">
+                                <strong>江波圖</strong>
+                                <span>當日 5分K（底底低破底空 / 底底高突破多）</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">③</span>
+                            <div class="chip-body">
+                                <strong>K線型態</strong>
+                                <span>當日 5分K（大量反壓未過空 / 支撐不破多）</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">④</span>
+                            <div class="chip-body">
+                                <strong>內外盤</strong>
+                                <span>當日（內盤賣壓重空 / 外盤>60%多）</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">⑤</span>
+                            <div class="chip-body">
+                                <strong>差異分析</strong>
+                                <span>當日 5分K（弱於大盤空 / 抗跌強於大盤多）</span>
+                            </div>
+                        </div>
+                        <div class="rule-chip">
+                            <span class="chip-num">⑥</span>
+                            <div class="chip-body">
+                                <strong>主力手法</strong>
+                                <span>參考券商分點（波段買超 + 當日拉高出貨倒貨）</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 當沖概況統計卡片 -->
+                <section class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">🎯</div>
+                        <div class="metric-content">
+                            <div class="metric-label">篩選診斷總數</div>
+                            <div class="metric-val" id="dtMetricTotal">0 <span class="unit">檔</span></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">🔴</div>
+                        <div class="metric-content">
+                            <div class="metric-label">偏空當沖推薦</div>
+                            <div class="metric-val text-down" id="dtMetricShort">0 <span class="unit">檔</span></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">🟢</div>
+                        <div class="metric-content">
+                            <div class="metric-label">偏多當沖推薦</div>
+                            <div class="metric-val text-up" id="dtMetricLong">0 <span class="unit">檔</span></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">🏛️</div>
+                        <div class="metric-content">
+                            <div class="metric-label">大盤加權基準</div>
+                            <div class="metric-val text-down" id="dtMetricMarket">-0.47% <span class="unit">跌220點</span></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 當沖診斷表格卡片 -->
+                <section class="results-table-section glass-card">
+                    <div class="table-header-bar">
+                        <div class="table-title-wrap">
+                            <h3>📋 當沖 6 大指標一一核對結果</h3>
+                            <span class="badge badge-info" id="dtTableCountBadge">載入中...</span>
+                        </div>
+                        <div class="table-actions">
+                            <div class="search-box">
+                                <span class="search-icon">🔍</span>
+                                <input type="text" id="dtSearchInput" placeholder="搜尋股票代號或名稱...">
+                            </div>
+                            <button class="btn btn-success btn-sm" id="btnExportDtCSV">
+                                <span class="icon">📥</span> 匯出當沖診斷 CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 當沖表格 -->
+                    <div class="table-responsive">
+                        <table class="stock-table day-trading-table" id="dtTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 9%;">股票</th>
+                                    <th class="text-right" style="width: 8%;">現價/漲跌</th>
+                                    <th class="text-center" style="width: 7.5%;">達成指標</th>
+                                    <th class="text-center" style="width: 9.5%;">當沖指引</th>
+                                    <th class="text-center" style="width: 12%;">依據明細</th>
+                                    <th style="width: 9%;">①均價線(5分K)</th>
+                                    <th style="width: 9%;">②江波圖(5分K)</th>
+                                    <th style="width: 9%;">③K線(5分K)</th>
+                                    <th style="width: 9%;">④內外盤(當日)</th>
+                                    <th style="width: 9%;">⑤差異分析(5分K)</th>
+                                    <th style="width: 9%;">⑥主力手法</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dtTableBody">
+                                <!-- JS 動態渲染 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+
+            <!-- ======================================================== -->
+            <!-- 分頁 3: 大戶隔日沖 (籌碼特徵與隔日開盤應對) -->
+            <!-- ======================================================== -->
+            <div id="viewOvernight" class="tab-view" style="display:none;">
+                <!-- 隔日沖戰略指導卡片 -->
+                <section class="overnight-banner glass-card">
+                    <div class="banner-title-box">
+                        <div class="title-with-pill">
+                            <h2>🏛️ 大戶隔日沖實戰特徵與隔日對策指南</h2>
+                            <span class="badge badge-warning">隔日開盤沖銷 SOP</span>
+                        </div>
+                        <p class="banner-desc">專為防範或利用主力「隔日沖」慣性所設計。大戶常見手法為今日趁波段強勢拉高或鎖碼，隔日開盤慣性開高倒貨出脫；掌握各股隔日沖風險，提早擬定開盤應對策略！</p>
+                    </div>
+
+                    <div class="tactics-grid">
+                        <div class="tactic-card">
+                            <div class="tactic-icon">⚠️</div>
+                            <h4>1. 高檔爆量長上影防倒貨</h4>
+                            <p>今日盤中衝高回落爆出大量、留長上影線者，隔日沖主力多數被套或短線了結，<strong>隔日開盤極易慣性開低走低摜壓</strong>，嚴禁開盤追高，反而適合開高反手放空。</p>
+                        </div>
+                        <div class="tactic-card">
+                            <div class="tactic-icon">⏰</div>
+                            <h4>2. 9:30~10:00 見高獲利了結</h4>
+                            <p>依據 <code>Stock01.pdf</code> 實戰法則，隔日若早盤有反彈，<strong>9:30~10:00 往往是全天最高點</strong>。多單應於此時段分批落袋，空方可於此時伺機尋找反壓空點。</p>
+                        </div>
+                        <div class="tactic-card">
+                            <div class="tactic-icon">📉</div>
+                            <h4>3. 跌破開盤與均價順勢追空</h4>
+                            <p>若開盤微幅開高但 5 分鐘內跌破開盤價及當日均價線，代表隔日沖主力大單堅決倒貨砸盤，此時順勢空單進場勝率高達 70%。</p>
+                        </div>
+                        <div class="tactic-card">
+                            <div class="tactic-icon">🛡️</div>
+                            <h4>4. 分點鎖碼抗跌之低階防守</h4>
+                            <p>若個股全日抗跌且券商分點持續大買不放，代表隔日沖賣壓極低，屬於真正波段大戶鎖碼股，回測均線可偏多觀望。</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 篩選股票隔日沖風險評級表 -->
+                <section class="results-table-section glass-card">
+                    <div class="table-header-bar">
+                        <div class="table-title-wrap">
+                            <h3>📊 篩選標的之「大戶隔日沖風險評估與開盤劇本」</h3>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="stock-table overnight-table">
+                            <thead>
+                                <tr>
+                                    <th>股票</th>
+                                    <th class="text-right">收盤價</th>
+                                    <th class="text-right">今日高低點 (振幅)</th>
+                                    <th class="text-center">隔日沖風險評級</th>
+                                    <th>隔日開盤應對行動</th>
+                                    <th>隔日沖籌碼與盤勢特徵解析</th>
+                                </tr>
+                            </thead>
+                            <tbody id="overnightTableBody">
+                                <!-- JS 動態填入 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+        </main>
+
+        <!-- 頁尾資訊 -->
+        <footer class="footer">
+            <div class="footer-content">
+                <span>系統整合：MoneyDJ 理財網 (嘉實資訊) × 臺灣證券交易所 (TWSE/TPEX) MIS 即時報價</span>
+                <span class="footer-sep">|</span>
+                <span>核心理論：Stock01.pdf《當沖 7 大獲利術》實戰檢核</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 書籤小工具說明彈窗 (Bookmarklet Modal) -->
+    <div class="modal-overlay" id="bookmarkletModal" style="display:none;">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h3>🔖 MoneyDJ 官網專用一鍵自動化書籤</h3>
+                <button class="modal-close" id="btnCloseModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>若您希望直接在 <strong>MoneyDJ 官方選股頁面</strong> 上自動完成勾選與匯出，您可以使用以下工具：</p>
+                <div class="step-card">
+                    <div class="step-num">方法一</div>
+                    <div class="step-detail">
+                        <h4>將下方按鈕拖曳至瀏覽器書籤列：</h4>
+                        <div class="bookmarklet-link-box">
+                            <a class="btn btn-primary bookmarklet-draggable" id="bookmarkletLink" href="#" onclick="alert('請將我拖曳至瀏覽器的書籤列中！'); return false;">
+                                📑 MoneyDJ 一鍵自動選股 & 匯出
+                            </a>
+                        </div>
+                        <p class="step-tip">拖到書籤列後，只要開啟 MoneyDJ 選股頁面並點擊此書籤，即會自動點選條件並匯出 CSV！</p>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-num">方法二</div>
+                    <div class="step-detail">
+                        <h4>在 MoneyDJ 網頁按 F12 開啟「主控台 (Console)」，貼上以下代碼執行：</h4>
+                        <div class="code-box">
+                            <pre><code id="bookmarkletCodeText">載入中...</code></pre>
+                            <button class="btn btn-secondary btn-xs copy-btn" id="btnCopyCode">複製代碼</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 懸浮快速回到智慧選股按鈕 -->
+    <button class="floating-home-btn" id="floatingHomeBtn" title="點擊回到智慧選股">
+        <span class="icon">🏠</span> <span>智慧選股</span>
+    </button>
+
+    <!-- MACD(12) 技術分析詳細彈窗 (緊湊一頁模式，點擊背景或按 Esc 即可關閉回到主頁) -->
+    <div class="modal-overlay" id="macdModal" style="display:none;" title="點擊灰色背景即可關閉回到智慧選股">
+        <div class="modal-content glass-card" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="macdModalTitle">📈 MACD(12, 26, 9) 週線技術分析</h3>
+                <button class="modal-close" id="btnCloseMacdModal" title="點擊關閉回到智慧選股">&times;</button>
+            </div>
+            <div class="modal-body" id="macdModalBody">
+                <!-- JS 動態填入 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 當沖 6 大獲利術實戰診斷詳細彈窗 (依據明細 - 緊湊一頁模式，點擊背景或按 Esc 即可關閉) -->
+    <div class="modal-overlay" id="dtDetailModal" style="display:none;" title="點擊灰色背景即可關閉">
+        <div class="modal-content glass-card" onclick="event.stopPropagation()" style="max-width: 680px;">
+            <div class="modal-header">
+                <h3 id="dtModalTitle">⚡ 當沖 6 大獲利術實戰診斷依據 (Stock01.pdf)</h3>
+                <button class="modal-close" id="btnCloseDtModal" title="點擊關閉">&times;</button>
+            </div>
+            <div class="modal-body" id="dtModalBody">
+                <!-- JS 動態填入 -->
+            </div>
+        </div>
+    </div>
+
+
+    <script src="app.js"></script>
+</body>
+</html>

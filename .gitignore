@@ -1,0 +1,19 @@
+# 本地備份目錄 (不推播至 GitHub 以免龐大肥大)
+backups/
+
+# 記錄與暫存檔
+*.log
+*.tmp
+.env
+__pycache__/
+*.pyc
+
+# 系統與編輯器產生檔
+.system_generated/
+.user_uploaded/
+.DS_Store
+Thumbs.db
+
+# 產出報告暫存與開發暫存
+output/
+temp/

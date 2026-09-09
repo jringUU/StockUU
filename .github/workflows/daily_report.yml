@@ -1,0 +1,38 @@
+name: 每日晚上 10 點選股與郵件發送日報
+
+on:
+  schedule:
+    # 台灣時間 (UTC+8) 每日晚上 22:00 = 國際標準時間 (UTC) 14:00
+    - cron: '0 14 * * *'
+  workflow_dispatch: # 支援在 GitHub 網頁 Actions 頁籤隨時手動點擊「Run workflow」一鍵測試
+
+jobs:
+  daily-screen-and-email:
+    name: 執行 MoneyDJ 智慧選股與發送日報
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 下載專案代碼 (Checkout)
+        uses: actions/checkout@v4
+
+      - name: 🐍 設定 Python 3.11 環境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🚀 執行選股、生成報告與發送郵件
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: |
+          python scripts/daily_report.py
+
+      - name: 📦 保存日報與 CSV 檔案為 GitHub 構件 (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: StockUU_每日選股報告
+          path: output/
+          retention-days: 14
