@@ -20,6 +20,17 @@
 
 ## 📝 異動歷史記錄
 
+### [2026-09-14 20:25:00] - 修復 push_to_github.bat 換行與控制流架構並成功推送至 GitHub
+- **異動目的**：修復批次檔因外部編輯器寫入 Unix LF 換行導致 Windows cmd.exe 偏移出現亂碼「'囷??StockUU' 不是內部或外部命令」及掛起問題，重新標準化為 Windows 原生 CRLF (`\r\n`)，並改採標籤跳轉 (`goto`) 避免括號解析衝突，實測推送完全成功。
+- **異動檔案**：
+  - `[修改]` `push_to_github.bat`（換行標準化為 CRLF，重構流程為 `goto DO_COMMIT` / `goto DO_PUSH` 控制流）
+  - `[修改]` `CHANGELOG.md`（追加本異動紀錄）
+- **備份存放目錄**：`backups/backup_20260914_202240/` (最新) 與 `backups/backup_20260914_200744/` (次新)
+- **詳細修改內容**：
+  1. **CRLF 換行格式修正**：批次檔在 Windows `cmd.exe` 下執行時若為 Unix LF (`\n`)，命令解釋器會因位元組偏移導致中文字符與指令截斷，已將全文重新轉換為 Windows 原生 CRLF (`\r\n`)。
+  2. **控制流優化杜絕語法衝突**：原 `if (...) else (...)` 在 cmd 下若包含 `commit` 等括號易遭提早截斷引發語法錯誤，全面改用 Windows 傳統穩定之 `if errorlevel 1 goto ...` 標籤控制流。
+  3. **自動推送驗證**：已於終端成功執行推送，順利建立 commit 並將包含 `data/latest.json` 及最新 GitHub Pages 工作流之全部 11 個檔案推至 GitHub `main` 分支。
+
 ### [2026-09-14 20:12:00] - 改編為可在 GitHub 上發佈執行 (支援 GitHub Pages 線上終端與 Actions 自動化發佈)
 - **異動目的**：依使用者需求「把程式改編成可以在github上發佈執行」，將系統升級為可在 GitHub Pages 雲端免伺服器展示執行，並結合 GitHub Actions 每日自動排程爬取最新盤勢、計算 6 大當沖指標、輸出靜態快照資料並自動部署至 GitHub Pages 的完整現代化雙模架構。
 - **異動檔案**：
