@@ -149,6 +149,11 @@ function initEvents() {
     btnResetDefault.addEventListener('click', resetDefaults);
     btnRetry.addEventListener('click', runScreening);
 
+    const btnDirectMoneyDJRun = document.getElementById('btnDirectMoneyDJRun');
+    if (btnDirectMoneyDJRun) {
+        btnDirectMoneyDJRun.addEventListener('click', runMoneyDJDirectScreen);
+    }
+
     // 條件勾選即時連動卡片啟用/停用樣式與輸入框
     if (condTechDIF) {
         condTechDIF.addEventListener('change', () => {
@@ -312,7 +317,33 @@ function resetDefaults() {
 let isCloudMode = false;
 let cloudDataCache = null;
 
-// 更新系統運行模式標籤 (GitHub 雲端模式 vs 本機伺服器模式)
+// 動態構造 MoneyDJ 選股大師官方即時篩選 URL (依據當前畫面所有核取與數值輸入)
+function getMoneyDJQueryUrl() {
+    const isTechActive = condTechDIF ? condTechDIF.checked : true;
+    const isChipActive = condChipEnable ? condChipEnable.checked : true;
+    const isRevActive = condRevEnable ? condRevEnable.checked : true;
+
+    const days = isChipActive ? (inputChipDays.value || 20) : '';
+    const vol = isChipActive ? (inputChipVol.value || 200) : '';
+    const months = isRevActive ? (inputRevMonths.value || 3) : '';
+    const pct = isRevActive ? (inputRevPct.value || 1) : '';
+    const filterLow = condFilterLow ? (condFilterLow.checked ? 1 : 0) : 1;
+
+    const conds = [];
+    if (isTechActive) conds.push("x@1301");
+    if (isChipActive && days && vol) conds.push(`x@370,a@${days},b@${vol}`);
+    if (isRevActive && months && pct) conds.push(`x@5720,a@${months},b@${pct}`);
+    const A = conds.join(';');
+    return `https://concords.moneydj.com/z/zk/zkf/zkResult.asp?D=${filterLow}&A=${A}&site=`;
+}
+
+// 直連 MoneyDJ 官方伺服器即時運算篩選
+function runMoneyDJDirectScreen() {
+    const url = getMoneyDJQueryUrl();
+    window.open(url, '_blank');
+}
+
+// 更新系統運行模式標籤 (線上雲端模式 vs 本機伺服器模式)
 function updateSystemModeUI(source, queryTime) {
     const serverStatus = document.getElementById('serverStatus');
     const cloudBanner = document.getElementById('cloudModeBanner');
@@ -322,14 +353,14 @@ function updateSystemModeUI(source, queryTime) {
         if (serverStatus) {
             serverStatus.innerHTML = `
                 <span class="status-dot pulse" style="background:#06b6d4; box-shadow:0 0 8px rgba(6,182,212,0.6);"></span>
-                <span class="status-text" style="color:#38bdf8;">🌐 GitHub 雲端模式</span>
+                <span class="status-text" style="color:#38bdf8;">🌐 線上金融終端</span>
             `;
-            serverStatus.title = `目前載入 GitHub Actions 雲端最新選股快照 (${queryTime || ''})`;
+            serverStatus.title = `目前運行於 GitHub Pages 線上終端，支援即時篩選、指標診斷與直連選股大師 (${queryTime || ''})`;
         }
         if (cloudBanner) {
             cloudBanner.style.display = 'flex';
             if (cloudBannerText) {
-                cloudBannerText.innerHTML = `<strong>🌐 GitHub 雲端模式：</strong>資料由 GitHub Actions 每日定時自動更新（資料時間：<strong>${queryTime || '最新'}</strong>）。您可即時搜尋、排序、自選波段、查看當沖 6 大指標並一鍵匯出 CSV！`;
+                cloudBannerText.innerHTML = `<strong>⚡ MoneyDJ 選股大師即時金融終端：</strong>支援自訂條件即時篩選、波段與當沖 6 大指標深度量化診斷，並支援一鍵直連 MoneyDJ 原站即時執行與匯出 CSV！`;
             }
         }
     } else {
@@ -462,7 +493,7 @@ async function runScreening() {
     }
 
     allStocks = finalStocks;
-    currentQueryUrl = data.targetUrl || '';
+    currentQueryUrl = getMoneyDJQueryUrl();
     isCloudMode = (dataSource === 'cloud');
 
     // 更新系統模式 UI (標籤與橫幅)
