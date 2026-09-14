@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20260914_2050">
 </head>
 <body>
     <div class="app-layout">
@@ -77,6 +77,11 @@
                 <span class="tab-icon">🏛️</span>
                 <span class="tab-title">大戶隔日沖</span>
                 <span class="tab-badge" id="badgeOvernightCount">隔日對策</span>
+            </button>
+            <button class="tab-nav-btn" id="tabBtnMoneyDjLive" data-tab="moneydjLive">
+                <span class="tab-icon">🚀</span>
+                <span class="tab-title">MoneyDJ 原站即時篩選</span>
+                <span class="tab-badge" style="background:rgba(6,182,212,0.2); color:#38bdf8; border:1px solid rgba(6,182,212,0.4);">即時運算</span>
             </button>
         </nav>
 
@@ -191,16 +196,20 @@
                         </div>
 
                         <div class="action-buttons">
-                            <button class="btn btn-primary btn-lg glow-on-hover" id="btnRunFilter">
+                            <button class="btn btn-primary btn-lg glow-on-hover" id="btnRunFilter" title="執行量化篩選並載入 TWSE 報價與當沖 6 大指標診斷">
                                 <span class="btn-spinner" id="filterSpinner" style="display:none;"></span>
                                 <span class="icon" id="filterIcon">⚡</span>
-                                <span class="text" id="filterBtnText">開始篩選</span>
+                                <span class="text" id="filterBtnText">開始篩選 (量化診斷)</span>
                             </button>
-                            <button class="btn btn-cyan btn-lg glow-on-hover" id="btnDirectMoneyDJRun" title="使用上方自選條件直接在 MoneyDJ 官方伺服器執行即時運算篩選">
+                            <button class="btn btn-cyan btn-lg glow-on-hover" id="btnEmbedMoneyDJRun" title="使用上方設定條件，直接在頁面內嵌視窗中向 MoneyDJ 原站執行即時運算篩選">
+                                <span class="icon">🖥️</span>
+                                <span class="text">內嵌即時執行</span>
+                            </button>
+                            <button class="btn btn-secondary btn-lg" id="btnDirectMoneyDJRun" title="另開全新分頁直接在 MoneyDJ 官方伺服器執行即時運算篩選">
                                 <span class="icon">🚀</span>
-                                <span class="text">直連選股大師即時執行 ↗</span>
+                                <span class="text">直連選股大師 ↗</span>
                             </button>
-                            <button class="btn btn-success btn-lg" id="btnExportCSV" disabled>
+                            <button class="btn btn-success btn-lg" id="btnExportCSV" disabled title="匯出篩選股票名單">
                                 <span class="icon">📥</span>
                                 <span class="text">匯出 CSV 檔</span>
                             </button>
@@ -656,6 +665,50 @@
                 </section>
             </div>
 
+            <!-- ======================================================== -->
+            <!-- 分頁 5: MoneyDJ 原站即時篩選視窗 (內嵌官方伺服器運算) -->
+            <!-- ======================================================== -->
+            <div id="viewMoneyDjLive" class="tab-view" style="display:none;">
+                <section class="banner-section glass-card">
+                    <div class="banner-title-box">
+                        <div class="title-with-pill">
+                            <h2>🚀 MoneyDJ 選股大師 原站即時運算視窗</h2>
+                            <span class="badge badge-primary">官方原站即時連線</span>
+                        </div>
+                        <p class="banner-desc">本視窗直接向 <strong>MoneyDJ 官方伺服器 (concords.moneydj.com)</strong> 發送您設定的選股指令，進行非快照的<strong>即時動態運算</strong>。您可在此檢視最新篩選結果、點擊個股資訊，或一鍵於新分頁開啟！</p>
+                    </div>
+
+                    <div class="iframe-toolbar glass-card">
+                        <div class="iframe-toolbar-info">
+                            <span class="toolbar-label">即時查詢網址：</span>
+                            <code class="iframe-url-text" id="iframeUrlDisplay">載入中...</code>
+                        </div>
+                        <div class="iframe-toolbar-actions">
+                            <button class="btn btn-secondary btn-sm" id="btnReloadIframe" title="重新載入 MoneyDJ 官方運算結果">
+                                <span class="icon">🔄</span> 重新載入
+                            </button>
+                            <button class="btn btn-cyan btn-sm" id="btnOpenIframeNewTab" title="於全新分頁開啟 MoneyDJ 原始頁面">
+                                <span class="icon">↗</span> 另開獨立分頁
+                            </button>
+                            <button class="btn btn-ghost btn-sm" id="btnCopyIframeUrl" title="複製目前官方查詢網址">
+                                <span class="icon">📋</span> 複製網址
+                            </button>
+                            <button class="btn btn-primary btn-sm" id="btnBackToSwing" title="返回條件調整面板修改參數">
+                                <span class="icon">⚙️</span> 修改條件
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="iframe-viewport-card glass-card">
+                        <div class="iframe-loading-indicator" id="iframeLoadingBar">
+                            <div class="spinner-sm"></div>
+                            <span>正在連線 MoneyDJ 官方伺服器即時運算篩選結果...</span>
+                        </div>
+                        <iframe id="moneydjIframe" name="moneydjIframe" src="about:blank" class="moneydj-live-iframe" loading="lazy"></iframe>
+                    </div>
+                </section>
+            </div>
+
         </main>
 
         <!-- 頁尾資訊 -->
@@ -736,6 +789,6 @@
     </div>
 
 
-    <script src="app.js"></script>
+    <script src="app.js?v=20260914_2050"></script>
 </body>
 </html>

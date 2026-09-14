@@ -13,10 +13,12 @@ const tabBtnSwing = document.getElementById('tabBtnSwing');
 const tabBtnWaveStrategy = document.getElementById('tabBtnWaveStrategy');
 const tabBtnDayTrading = document.getElementById('tabBtnDayTrading');
 const tabBtnOvernight = document.getElementById('tabBtnOvernight');
+const tabBtnMoneyDjLive = document.getElementById('tabBtnMoneyDjLive');
 const viewSwing = document.getElementById('viewSwing');
 const viewWaveStrategy = document.getElementById('viewWaveStrategy');
 const viewDayTrading = document.getElementById('viewDayTrading');
 const viewOvernight = document.getElementById('viewOvernight');
+const viewMoneyDjLive = document.getElementById('viewMoneyDjLive');
 
 // DOM 元素 - 標籤徽章與勾選
 const badgeSwingCount = document.getElementById('badgeSwingCount');
@@ -117,7 +119,8 @@ function initTabs() {
         { btn: tabBtnSwing, view: viewSwing, id: 'swing' },
         { btn: tabBtnWaveStrategy, view: viewWaveStrategy, id: 'waveStrategy' },
         { btn: tabBtnDayTrading, view: viewDayTrading, id: 'dayTrading' },
-        { btn: tabBtnOvernight, view: viewOvernight, id: 'overnight' }
+        { btn: tabBtnOvernight, view: viewOvernight, id: 'overnight' },
+        { btn: tabBtnMoneyDjLive, view: viewMoneyDjLive, id: 'moneydjLive' }
     ];
 
     tabs.forEach(t => {
@@ -136,6 +139,8 @@ function initTabs() {
                 renderDayTradingTable(allStocks);
             } else if (t.id === 'overnight') {
                 renderOvernightTable(allStocks);
+            } else if (t.id === 'moneydjLive') {
+                loadMoneyDJIframe();
             }
         });
     });
@@ -152,6 +157,37 @@ function initEvents() {
     const btnDirectMoneyDJRun = document.getElementById('btnDirectMoneyDJRun');
     if (btnDirectMoneyDJRun) {
         btnDirectMoneyDJRun.addEventListener('click', runMoneyDJDirectScreen);
+    }
+    const btnEmbedMoneyDJRun = document.getElementById('btnEmbedMoneyDJRun');
+    if (btnEmbedMoneyDJRun) {
+        btnEmbedMoneyDJRun.addEventListener('click', switchToMoneyDJLive);
+    }
+    const btnReloadIframe = document.getElementById('btnReloadIframe');
+    if (btnReloadIframe) {
+        btnReloadIframe.addEventListener('click', () => loadMoneyDJIframe(true));
+    }
+    const btnOpenIframeNewTab = document.getElementById('btnOpenIframeNewTab');
+    if (btnOpenIframeNewTab) {
+        btnOpenIframeNewTab.addEventListener('click', () => {
+            window.open(getMoneyDJQueryUrl(), '_blank');
+        });
+    }
+    const btnCopyIframeUrl = document.getElementById('btnCopyIframeUrl');
+    if (btnCopyIframeUrl) {
+        btnCopyIframeUrl.addEventListener('click', () => {
+            const url = getMoneyDJQueryUrl();
+            navigator.clipboard.writeText(url).then(() => {
+                const orig = btnCopyIframeUrl.innerHTML;
+                btnCopyIframeUrl.innerHTML = '<span class="icon">✅</span> 已複製！';
+                setTimeout(() => { btnCopyIframeUrl.innerHTML = orig; }, 2000);
+            });
+        });
+    }
+    const btnBackToSwing = document.getElementById('btnBackToSwing');
+    if (btnBackToSwing) {
+        btnBackToSwing.addEventListener('click', () => {
+            if (tabBtnSwing) tabBtnSwing.click();
+        });
     }
 
     // 條件勾選即時連動卡片啟用/停用樣式與輸入框
@@ -337,10 +373,37 @@ function getMoneyDJQueryUrl() {
     return `https://concords.moneydj.com/z/zk/zkf/zkResult.asp?D=${filterLow}&A=${A}&site=`;
 }
 
-// 直連 MoneyDJ 官方伺服器即時運算篩選
+// 直連 MoneyDJ 官方伺服器即時運算篩選 (另開新頁)
 function runMoneyDJDirectScreen() {
     const url = getMoneyDJQueryUrl();
     window.open(url, '_blank');
+}
+
+// 載入或重新整理 MoneyDJ 內嵌視窗
+function loadMoneyDJIframe(forceReload = false) {
+    const iframe = document.getElementById('moneydjIframe');
+    const urlDisplay = document.getElementById('iframeUrlDisplay');
+    const loadingBar = document.getElementById('iframeLoadingBar');
+    const targetUrl = getMoneyDJQueryUrl();
+
+    if (urlDisplay) urlDisplay.textContent = targetUrl;
+    if (!iframe) return;
+
+    if (iframe.src !== targetUrl || forceReload) {
+        if (loadingBar) loadingBar.style.display = 'flex';
+        iframe.src = targetUrl;
+        iframe.onload = () => {
+            if (loadingBar) loadingBar.style.display = 'none';
+        };
+    }
+}
+
+// 切換至 MoneyDJ 原站即時篩選分頁並載入
+function switchToMoneyDJLive() {
+    if (tabBtnMoneyDjLive) {
+        tabBtnMoneyDjLive.click();
+    }
+    loadMoneyDJIframe(true);
 }
 
 // 更新系統運行模式標籤 (線上雲端模式 vs 本機伺服器模式)
@@ -1663,7 +1726,8 @@ function goHome() {
         { btn: tabBtnSwing, view: viewSwing, id: 'swing' },
         { btn: tabBtnWaveStrategy, view: viewWaveStrategy, id: 'waveStrategy' },
         { btn: tabBtnDayTrading, view: viewDayTrading, id: 'dayTrading' },
-        { btn: tabBtnOvernight, view: viewOvernight, id: 'overnight' }
+        { btn: tabBtnOvernight, view: viewOvernight, id: 'overnight' },
+        { btn: tabBtnMoneyDjLive, view: viewMoneyDjLive, id: 'moneydjLive' }
     ];
     tabs.forEach(item => {
         if (!item.btn || !item.view) return;
