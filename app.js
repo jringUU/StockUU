@@ -309,7 +309,44 @@ function resetDefaults() {
     condFilterLow.checked = true;
 }
 
-// 執行篩選與診斷
+let isCloudMode = false;
+let cloudDataCache = null;
+
+// 更新系統運行模式標籤 (GitHub 雲端模式 vs 本機伺服器模式)
+function updateSystemModeUI(source, queryTime) {
+    const serverStatus = document.getElementById('serverStatus');
+    const cloudBanner = document.getElementById('cloudModeBanner');
+    const cloudBannerText = document.getElementById('cloudBannerText');
+
+    if (source === 'cloud') {
+        if (serverStatus) {
+            serverStatus.innerHTML = `
+                <span class="status-dot pulse" style="background:#06b6d4; box-shadow:0 0 8px rgba(6,182,212,0.6);"></span>
+                <span class="status-text" style="color:#38bdf8;">🌐 GitHub 雲端模式</span>
+            `;
+            serverStatus.title = `目前載入 GitHub Actions 雲端最新選股快照 (${queryTime || ''})`;
+        }
+        if (cloudBanner) {
+            cloudBanner.style.display = 'flex';
+            if (cloudBannerText) {
+                cloudBannerText.innerHTML = `<strong>🌐 GitHub 雲端模式：</strong>資料由 GitHub Actions 每日定時自動更新（資料時間：<strong>${queryTime || '最新'}</strong>）。您可即時搜尋、排序、自選波段、查看當沖 6 大指標並一鍵匯出 CSV！`;
+            }
+        }
+    } else {
+        if (serverStatus) {
+            serverStatus.innerHTML = `
+                <span class="status-dot pulse" style="background:#10b981; box-shadow:0 0 8px rgba(16,185,129,0.6);"></span>
+                <span class="status-text" style="color:#10b981;">⚡ 本機伺服器模式</span>
+            `;
+            serverStatus.title = '已連線本機 PowerShell 伺服器 (server.ps1)';
+        }
+        if (cloudBanner) {
+            cloudBanner.style.display = 'none';
+        }
+    }
+}
+
+// 執行篩選與診斷 (前後端雙模支援)
 async function runScreening() {
     const isTechActive = condTechDIF.checked;
     const isChipActive = condChipEnable ? condChipEnable.checked : true;
@@ -348,48 +385,113 @@ async function runScreening() {
         filter_low: filterLow
     });
 
-    try {
-        const response = await fetch(`/api/screen?${queryParams.toString()}`);
-        if (!response.ok) {
-            throw new Error(`伺服器回應錯誤 (HTTP ${response.status})`);
+    let data = null;
+    let dataSource = 'local';
+
+    // 1. 判斷是否為 GitHub Pages 或無本機後端環境
+    const isGitHubHost = window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:';
+
+    // 若非 GitHub 靜態託管環境，優先連線本機 server.ps1
+    if (!isGitHubHost) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const response = await fetch(`/api/screen?${queryParams.toString()}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (response.ok) {
+                const resJson = await response.json();
+                if (resJson.success) {
+                    data = resJson;
+                    dataSource = 'local';
+                }
+            }
+        } catch (localErr) {
+            console.warn('本機後端未連線或逾時，自動無縫切換至雲端快照 data/latest.json:', localErr);
         }
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || '篩選資料解析失敗');
-        }
-
-        allStocks = data.stocks || [];
-        currentQueryUrl = data.targetUrl;
-        
-        // 篩選後波段預設為未勾選，由使用者自選標的
-        selectedSwingCodes.clear();
-
-        // 渲染智慧選股主頁
-        renderResults(allStocks, data.queryTime);
-
-        // 渲染波段手法指標
-        renderWaveStrategyTable(allStocks);
-
-        // 渲染當沖 6 大指標與診斷
-        renderDayTradingTable(allStocks);
-
-        // 渲染大戶隔日沖策略
-        renderOvernightTable(allStocks);
-
-        // 更新波段勾選 UI 狀態
-        updateSwingSelectionUI();
-
-        btnExportCSV.disabled = allStocks.length === 0;
-        tableSearchInput.disabled = false;
-        btnOpenTargetUrl.style.display = 'inline-flex';
-        setLoadingState(false, true);
-
-    } catch (err) {
-        console.error('Screening error:', err);
-        errorMessageText.innerText = `篩選失敗：${err.message}。請確認後端伺服器 server.ps1 正在運行。`;
-        setLoadingState(false, false);
     }
+
+    // 2. 若本機伺服器未運行或處於 GitHub 靜態環境，自動載入最新靜態快照
+    if (!data) {
+        try {
+            // 避免瀏覽器快取，加上時間戳記
+            const staticResp = await fetch('./data/latest.json?t=' + Date.now());
+            if (!staticResp.ok) {
+                throw new Error(`找不到 data/latest.json 快照 (HTTP ${staticResp.status})`);
+            }
+            const staticJson = await staticResp.json();
+            if (!staticJson.success) {
+                throw new Error(staticJson.error || '靜態資料解析失敗');
+            }
+            data = staticJson;
+            dataSource = 'cloud';
+            cloudDataCache = staticJson;
+        } catch (staticErr) {
+            console.error('靜態快照資料載入失敗:', staticErr);
+        }
+    }
+
+    if (!data) {
+        errorMessageText.innerHTML = `
+            篩選失敗：無法連線本機伺服器 (server.ps1)，且讀取雲端快照 <code>data/latest.json</code> 失敗。<br>
+            • 若在 GitHub Pages：請確認已透過 GitHub Actions 執行至少一次選股以生成快照資料。<br>
+            • 若在本機使用：請確認已執行 <code>start.bat</code> 啟動伺服器。
+        `;
+        setLoadingState(false, false);
+        return;
+    }
+
+    // 在雲端模式下，若使用者調整門檻（如過濾低價股或變更買超張數），支援純前端自適應過濾
+    let finalStocks = data.stocks || [];
+    if (dataSource === 'cloud') {
+        finalStocks = finalStocks.filter(s => {
+            if (difWeek && (s.difWeek === '-' || !s.difWeek)) return false;
+            if (isChipActive && vol) {
+                const buy = parseInt(String(s.majorBuy).replace(/,/g, ''), 10) || 0;
+                if (buy < parseInt(vol, 10)) return false;
+            }
+            if (isRevActive && pct) {
+                const rev = parseFloat(String(s.revGrowth).replace('%', '')) || 0;
+                if (rev < parseFloat(pct)) return false;
+            }
+            if (filterLow) {
+                const price = parseFloat(s.closePrice) || 0;
+                if (price > 0 && price < 5.0) return false;
+            }
+            return true;
+        });
+    }
+
+    allStocks = finalStocks;
+    currentQueryUrl = data.targetUrl || '';
+    isCloudMode = (dataSource === 'cloud');
+
+    // 更新系統模式 UI (標籤與橫幅)
+    updateSystemModeUI(dataSource, data.queryTime);
+
+    // 篩選後波段預設為未勾選，由使用者自選標的
+    selectedSwingCodes.clear();
+
+    // 渲染智慧選股主頁
+    renderResults(allStocks, data.queryTime);
+
+    // 渲染波段手法指標
+    renderWaveStrategyTable(allStocks);
+
+    // 渲染當沖 6 大指標與診斷
+    renderDayTradingTable(allStocks);
+
+    // 渲染大戶隔日沖策略
+    renderOvernightTable(allStocks);
+
+    // 更新波段勾選 UI 狀態
+    updateSwingSelectionUI();
+
+    btnExportCSV.disabled = allStocks.length === 0;
+    tableSearchInput.disabled = false;
+    if (currentQueryUrl) {
+        btnOpenTargetUrl.style.display = 'inline-flex';
+    }
+    setLoadingState(false, true);
 }
 
 // 設置加載/空狀態

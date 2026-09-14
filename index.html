@@ -31,6 +31,9 @@
                     <span class="status-dot pulse"></span>
                     <span class="status-text">伺服器連線正常</span>
                 </span>
+                <a href="https://github.com/jringUU/StockUU/actions" target="_blank" class="btn btn-outline btn-sm" id="btnGitHubActions" title="前往 GitHub Actions 檢視或手動觸發最新選股排程">
+                    <span class="icon">⚡</span> 雲端 Actions
+                </a>
                 <button class="btn btn-secondary btn-sm" id="btnOpenBookmarklet">
                     <span class="icon">🔖</span> 瀏覽器書籤小工具
                 </button>
@@ -39,6 +42,19 @@
                 </a>
             </div>
         </header>
+
+        <!-- 雲端模式提醒橫幅 (GitHub Pages 或靜態展示時自動呈現) -->
+        <aside class="cloud-banner" id="cloudModeBanner" style="display: none;">
+            <div class="cloud-banner-content">
+                <span class="icon" style="font-size:1.1rem;">🌐</span>
+                <span id="cloudBannerText">目前為 GitHub 雲端模式：載入 GitHub Actions 最新排程選股結果。</span>
+            </div>
+            <div class="cloud-banner-actions">
+                <a href="https://github.com/jringUU/StockUU/actions" target="_blank" class="cloud-banner-link" title="前往 GitHub Actions 檢視或手動觸發最新選股排程">
+                    ⚡ GitHub Actions 立即更新 ↗
+                </a>
+            </div>
+        </aside>
 
         <!-- 四大核心功能切換分頁標籤列 -->
         <nav class="strategy-tabs-bar">

@@ -5,6 +5,7 @@ $listener = New-Object System.Net.HttpListener
 $prefix = "http://localhost:$port/"
 $listener.Prefixes.Add($prefix)
 
+
 try {
     $listener.Start()
     Write-Host "=================================================" -ForegroundColor Cyan
@@ -12,7 +13,8 @@ try {
     Write-Host " URL: $prefix" -ForegroundColor Yellow
     Write-Host " Press Ctrl+C to stop" -ForegroundColor Gray
     Write-Host "=================================================" -ForegroundColor Cyan
-} catch {
+}
+catch {
     Write-Host "Failed to start server: $_" -ForegroundColor Red
     exit 1
 }
@@ -65,7 +67,8 @@ function Fetch-MoneyDJData($days, $vol, $months, $pct, $difWeek, $filterLow) {
             $clean0 = [regex]::Replace($raw0, '<[^>]+>', '').Trim()
             if ($stkCode -ne "" -and $clean0.StartsWith($stkCode)) {
                 $stkName = $clean0.Substring($stkCode.Length).Trim()
-            } else {
+            }
+            else {
                 $stkName = $clean0
             }
             if ($stkName -eq "騰輝電子-K") { $stkName = "騰輝電子-KY" }
@@ -93,15 +96,15 @@ function Fetch-MoneyDJData($days, $vol, $months, $pct, $difWeek, $filterLow) {
             }
 
             $item = [PSCustomObject]@{
-                stkCode = $stkCode
-                stkName = $stkName
+                stkCode    = $stkCode
+                stkName    = $stkName
                 closePrice = $close
-                change = $change
-                changePct = $changePct
-                difWeek = $dif
-                macdWeek = $macd
-                majorBuy = $majorBuy
-                revGrowth = $revGrowth
+                change     = $change
+                changePct  = $changePct
+                difWeek    = $dif
+                macdWeek   = $macd
+                majorBuy   = $majorBuy
+                revGrowth  = $revGrowth
             }
             [void]$stocks.Add($item)
         }
@@ -131,7 +134,8 @@ function Fetch-MoneyDJData($days, $vol, $months, $pct, $difWeek, $filterLow) {
                             }
                         }
                     }
-                } catch {}
+                }
+                catch {}
             }
 
             foreach ($stk in $stocks) {
@@ -155,193 +159,206 @@ function Fetch-MoneyDJData($days, $vol, $months, $pct, $difWeek, $filterLow) {
                         $aArr = if ($m.f) { $m.f.TrimEnd('_').Split('_') | ForEach-Object { $v = 0; [int]::TryParse($_, [ref]$v) | Out-Null; $v } } else { @() }
                         $bTotal = if ($bArr.Count -gt 0) { ($bArr | Measure-Object -Sum).Sum } else { 0 }
                         $aTotal = if ($aArr.Count -gt 0) { ($aArr | Measure-Object -Sum).Sum } else { 0 }
-                    $bRatio = if (($bTotal + $aTotal) -gt 0) { [Math]::Round(($bTotal / ($bTotal + $aTotal)) * 100, 1) } else { 50 }
-                    $aRatio = [Math]::Round(100 - $bRatio, 1)
+                        $bRatio = if (($bTotal + $aTotal) -gt 0) { [Math]::Round(($bTotal / ($bTotal + $aTotal)) * 100, 1) } else { 50 }
+                        $aRatio = [Math]::Round(100 - $bRatio, 1)
 
-                    $vwap = [Math]::Round(($open + $high + $low + (2 * $close)) / 5, 2)
-                    $chgVal = [Math]::Round($close - $prev, 2)
-                    $chgPctVal = [Math]::Round(($chgVal / $prev) * 100, 2)
+                        $vwap = [Math]::Round(($open + $high + $low + (2 * $close)) / 5, 2)
+                        $chgVal = [Math]::Round($close - $prev, 2)
+                        $chgPctVal = [Math]::Round(($chgVal / $prev) * 100, 2)
 
-                    # ① 均價線 (當日5分K)
-                    $vwapSignal = "neutral"
-                    $vwapText = "平緩"
-                    $vwapDesc = "5分K均價線平緩(VWAP $vwap/收 $close)"
-                    if ($close -lt $vwap -and ($high -eq $open -or $close -lt $open)) {
-                        $vwapSignal = "short"
-                        $vwapText = "跌破均價線"
-                        $vwapDesc = "5分K跌破均價線(均價$vwap/收$close)"
-                    } elseif ($close -gt $vwap) {
-                        $vwapSignal = "long"
-                        $vwapText = "站上均價線"
-                        $vwapDesc = "5分K站上均價線(均價$vwap/收$close)"
+                        # ① 均價線 (當日5分K)
+                        $vwapSignal = "neutral"
+                        $vwapText = "平緩"
+                        $vwapDesc = "5分K均價線平緩(VWAP $vwap/收 $close)"
+                        if ($close -lt $vwap -and ($high -eq $open -or $close -lt $open)) {
+                            $vwapSignal = "short"
+                            $vwapText = "跌破均價線"
+                            $vwapDesc = "5分K跌破均價線(均價$vwap/收$close)"
+                        }
+                        elseif ($close -gt $vwap) {
+                            $vwapSignal = "long"
+                            $vwapText = "站上均價線"
+                            $vwapDesc = "5分K站上均價線(均價$vwap/收$close)"
+                        }
+
+                        # ② 江波圖 (當日5分K)
+                        $waveSignal = "neutral"
+                        $waveText = "區間整理"
+                        $waveDesc = "5分K波段區間整理"
+                        if ($close -le $low * 1.015 -or ($open -ge $high * 0.99 -and $close -lt $open)) {
+                            $waveSignal = "short"
+                            $waveText = "底底低破底"
+                            $waveDesc = "5分K走勢底底低破底下殺"
+                        }
+                        elseif ($close -ge $high * 0.99) {
+                            $waveSignal = "long"
+                            $waveText = "底底高突破"
+                            $waveDesc = "5分K走勢底底高突破"
+                        }
+
+                        # ③ K線 (當日5分K)
+                        $kSignal = "neutral"
+                        $kText = "十字線"
+                        $kDesc = "5分K十字線多空拉鋸"
+                        if (($high - $close) -gt ($close - $low) * 1.3 -or ($high -eq $open -and $close -lt $open)) {
+                            $kSignal = "short"
+                            $kText = "大量反壓"
+                            $kDesc = "5分K高檔爆量成反壓(長上影/實體黑K)"
+                        }
+                        elseif ($close -gt $open) {
+                            $kSignal = "long"
+                            $kText = "量能支撐"
+                            $kDesc = "5分K量能支撐未跌破"
+                        }
+
+                        # ④ 內外盤 (當日)
+                        $inOutSignal = "neutral"
+                        $inOutText = "買賣均衡"
+                        $inOutDesc = "買賣盤均衡 (外盤$bRatio% : 內盤$aRatio%)"
+                        if ($aRatio -ge 56.0) {
+                            $inOutSignal = "short"
+                            $inOutText = "內盤賣壓重"
+                            $inOutDesc = "內盤賣單重($aRatio%)，賣壓沉重"
+                        }
+                        elseif ($bRatio -ge 58.0) {
+                            $inOutSignal = "long"
+                            $inOutText = "外盤積極買"
+                            $inOutDesc = "外盤買單積極($bRatio%)，買氣旺盛"
+                        }
+
+                        # ⑤ 差異分析 (當日5分K vs 大盤 -0.47%)
+                        $diffSignal = "neutral"
+                        $diffText = "與大盤同步"
+                        $diffDesc = "走勢與大盤同步"
+                        if ($chgPctVal -gt -0.2) {
+                            $diffSignal = "long"
+                            $diffText = "抗跌強於大盤"
+                            $diffDesc = "5分K走勢抗跌強於大盤(大盤-0.47%/個股$chgPctVal%)"
+                        }
+                        elseif ($chgPctVal -lt -1.0) {
+                            $diffSignal = "short"
+                            $diffText = "弱於大盤"
+                            $diffDesc = "5分K跌幅深於大盤(個股$chgPctVal%)"
+                        }
+
+                        # ⑥ 主力手法 (參考券商分點)
+                        $brokerSignal = "neutral"
+                        $brokerText = "分點觀望"
+                        $brokerDesc = "分點主力籌碼中性"
+                        if ($close -lt $open) {
+                            $brokerSignal = "short"
+                            $brokerText = "分點買超+當日倒貨"
+                            $brokerDesc = "券商分點近20日累積大買 +$($stk.majorBuy) 張，但當日5分K開高走低、拉抬後反手出貨"
+                        }
+                        else {
+                            $brokerSignal = "long"
+                            $brokerText = "分點護盤鎖碼"
+                            $brokerDesc = "券商分點近20日累積大買 +$($stk.majorBuy) 張，盤中低檔護盤鎖碼"
+                        }
+
+                        # 計算多空得分
+                        $signals = @($vwapSignal, $waveSignal, $kSignal, $inOutSignal, $diffSignal, $brokerSignal)
+                        $longCount = ($signals | Where-Object { $_ -eq "long" }).Count
+                        $shortCount = ($signals | Where-Object { $_ -eq "short" }).Count
+
+                        $overall = "觀望 / 整理"
+                        $overallClass = "badge-neutral"
+                        if ($shortCount -ge 4) {
+                            $overall = "強烈偏空當沖"
+                            $overallClass = "badge-short"
+                        }
+                        elseif ($shortCount -ge 3) {
+                            $overall = "偏空操作"
+                            $overallClass = "badge-short"
+                        }
+                        elseif ($longCount -ge 4) {
+                            $overall = "強烈偏多當沖"
+                            $overallClass = "badge-long"
+                        }
+                        elseif ($longCount -ge 2) {
+                            $overall = "偏多防守"
+                            $overallClass = "badge-long"
+                        }
+
+                        # 隔日沖評級
+                        $nextDayRisk = "中"
+                        $nextDayAction = "正常區間應對"
+                        $nextDayDesc = "隔日沖買賣力道普通，觀察開盤平盤多空動向"
+                        if (($high - $close) -gt ($open * 0.03) -and $vol -gt 2000) {
+                            $nextDayRisk = "極高"
+                            $nextDayAction = "開盤防隔日沖倒貨 / 順勢空"
+                            $nextDayDesc = "今日高檔爆量長上影($high->$close)，大量隔日沖主力套牢或獲利了結，隔日開盤極易慣性開低走低摜壓"
+                        }
+                        elseif ($high -eq $open -and $close -lt $open) {
+                            $nextDayRisk = "高"
+                            $nextDayAction = "開低彈升不過高放空"
+                            $nextDayDesc = "全日實體黑K重挫，主力堅決調節無護盤，隔日開盤慣性偏弱"
+                        }
+                        elseif ($chgPctVal -gt -0.3 -and $close -ge $vwap) {
+                            $nextDayRisk = "低"
+                            $nextDayAction = "回測均線守穩偏多看"
+                            $nextDayDesc = "主力分點鎖碼抗跌，無隔日沖獲利賣壓，有利後續波段行情"
+                        }
+
+                        $stk | Add-Member -NotePropertyName "dayTrading" -NotePropertyValue ([PSCustomObject]@{
+                                openPrice     = $open
+                                highPrice     = $high
+                                lowPrice      = $low
+                                realClose     = $close
+                                todayVolume   = $vol
+                                vwap          = $vwap
+                                vwapSignal    = $vwapSignal
+                                vwapText      = $vwapText
+                                vwapDesc      = $vwapDesc
+                                waveSignal    = $waveSignal
+                                waveText      = $waveText
+                                waveDesc      = $waveDesc
+                                kSignal       = $kSignal
+                                kText         = $kText
+                                kDesc         = $kDesc
+                                inOutSignal   = $inOutSignal
+                                inOutText     = $inOutText
+                                inOutDesc     = $inOutDesc
+                                diffSignal    = $diffSignal
+                                diffText      = $diffText
+                                diffDesc      = $diffDesc
+                                brokerSignal  = $brokerSignal
+                                brokerText    = $brokerText
+                                brokerDesc    = $brokerDesc
+                                longCount     = $longCount
+                                shortCount    = $shortCount
+                                overall       = $overall
+                                overallClass  = $overallClass
+                                nextDayRisk   = $nextDayRisk
+                                nextDayAction = $nextDayAction
+                                nextDayDesc   = $nextDayDesc
+                            }) -Force
                     }
-
-                    # ② 江波圖 (當日5分K)
-                    $waveSignal = "neutral"
-                    $waveText = "區間整理"
-                    $waveDesc = "5分K波段區間整理"
-                    if ($close -le $low * 1.015 -or ($open -ge $high * 0.99 -and $close -lt $open)) {
-                        $waveSignal = "short"
-                        $waveText = "底底低破底"
-                        $waveDesc = "5分K走勢底底低破底下殺"
-                    } elseif ($close -ge $high * 0.99) {
-                        $waveSignal = "long"
-                        $waveText = "底底高突破"
-                        $waveDesc = "5分K走勢底底高突破"
-                    }
-
-                    # ③ K線 (當日5分K)
-                    $kSignal = "neutral"
-                    $kText = "十字線"
-                    $kDesc = "5分K十字線多空拉鋸"
-                    if (($high - $close) -gt ($close - $low) * 1.3 -or ($high -eq $open -and $close -lt $open)) {
-                        $kSignal = "short"
-                        $kText = "大量反壓"
-                        $kDesc = "5分K高檔爆量成反壓(長上影/實體黑K)"
-                    } elseif ($close -gt $open) {
-                        $kSignal = "long"
-                        $kText = "量能支撐"
-                        $kDesc = "5分K量能支撐未跌破"
-                    }
-
-                    # ④ 內外盤 (當日)
-                    $inOutSignal = "neutral"
-                    $inOutText = "買賣均衡"
-                    $inOutDesc = "買賣盤均衡 (外盤$bRatio% : 內盤$aRatio%)"
-                    if ($aRatio -ge 56.0) {
-                        $inOutSignal = "short"
-                        $inOutText = "內盤賣壓重"
-                        $inOutDesc = "內盤賣單重($aRatio%)，賣壓沉重"
-                    } elseif ($bRatio -ge 58.0) {
-                        $inOutSignal = "long"
-                        $inOutText = "外盤積極買"
-                        $inOutDesc = "外盤買單積極($bRatio%)，買氣旺盛"
-                    }
-
-                    # ⑤ 差異分析 (當日5分K vs 大盤 -0.47%)
-                    $diffSignal = "neutral"
-                    $diffText = "與大盤同步"
-                    $diffDesc = "走勢與大盤同步"
-                    if ($chgPctVal -gt -0.2) {
-                        $diffSignal = "long"
-                        $diffText = "抗跌強於大盤"
-                        $diffDesc = "5分K走勢抗跌強於大盤(大盤-0.47%/個股$chgPctVal%)"
-                    } elseif ($chgPctVal -lt -1.0) {
-                        $diffSignal = "short"
-                        $diffText = "弱於大盤"
-                        $diffDesc = "5分K跌幅深於大盤(個股$chgPctVal%)"
-                    }
-
-                    # ⑥ 主力手法 (參考券商分點)
-                    $brokerSignal = "neutral"
-                    $brokerText = "分點觀望"
-                    $brokerDesc = "分點主力籌碼中性"
-                    if ($close -lt $open) {
-                        $brokerSignal = "short"
-                        $brokerText = "分點買超+當日倒貨"
-                        $brokerDesc = "券商分點近20日累積大買 +$($stk.majorBuy) 張，但當日5分K開高走低、拉抬後反手出貨"
-                    } else {
-                        $brokerSignal = "long"
-                        $brokerText = "分點護盤鎖碼"
-                        $brokerDesc = "券商分點近20日累積大買 +$($stk.majorBuy) 張，盤中低檔護盤鎖碼"
-                    }
-
-                    # 計算多空得分
-                    $signals = @($vwapSignal, $waveSignal, $kSignal, $inOutSignal, $diffSignal, $brokerSignal)
-                    $longCount = ($signals | Where-Object { $_ -eq "long" }).Count
-                    $shortCount = ($signals | Where-Object { $_ -eq "short" }).Count
-
-                    $overall = "觀望 / 整理"
-                    $overallClass = "badge-neutral"
-                    if ($shortCount -ge 4) {
-                        $overall = "強烈偏空當沖"
-                        $overallClass = "badge-short"
-                    } elseif ($shortCount -ge 3) {
-                        $overall = "偏空操作"
-                        $overallClass = "badge-short"
-                    } elseif ($longCount -ge 4) {
-                        $overall = "強烈偏多當沖"
-                        $overallClass = "badge-long"
-                    } elseif ($longCount -ge 2) {
-                        $overall = "偏多防守"
-                        $overallClass = "badge-long"
-                    }
-
-                    # 隔日沖評級
-                    $nextDayRisk = "中"
-                    $nextDayAction = "正常區間應對"
-                    $nextDayDesc = "隔日沖買賣力道普通，觀察開盤平盤多空動向"
-                    if (($high - $close) -gt ($open * 0.03) -and $vol -gt 2000) {
-                        $nextDayRisk = "極高"
-                        $nextDayAction = "開盤防隔日沖倒貨 / 順勢空"
-                        $nextDayDesc = "今日高檔爆量長上影($high->$close)，大量隔日沖主力套牢或獲利了結，隔日開盤極易慣性開低走低摜壓"
-                    } elseif ($high -eq $open -and $close -lt $open) {
-                        $nextDayRisk = "高"
-                        $nextDayAction = "開低彈升不過高放空"
-                        $nextDayDesc = "全日實體黑K重挫，主力堅決調節無護盤，隔日開盤慣性偏弱"
-                    } elseif ($chgPctVal -gt -0.3 -and $close -ge $vwap) {
-                        $nextDayRisk = "低"
-                        $nextDayAction = "回測均線守穩偏多看"
-                        $nextDayDesc = "主力分點鎖碼抗跌，無隔日沖獲利賣壓，有利後續波段行情"
-                    }
-
-                    $stk | Add-Member -NotePropertyName "dayTrading" -NotePropertyValue ([PSCustomObject]@{
-                        openPrice = $open
-                        highPrice = $high
-                        lowPrice = $low
-                        realClose = $close
-                        todayVolume = $vol
-                        vwap = $vwap
-                        vwapSignal = $vwapSignal
-                        vwapText = $vwapText
-                        vwapDesc = $vwapDesc
-                        waveSignal = $waveSignal
-                        waveText = $waveText
-                        waveDesc = $waveDesc
-                        kSignal = $kSignal
-                        kText = $kText
-                        kDesc = $kDesc
-                        inOutSignal = $inOutSignal
-                        inOutText = $inOutText
-                        inOutDesc = $inOutDesc
-                        diffSignal = $diffSignal
-                        diffText = $diffText
-                        diffDesc = $diffDesc
-                        brokerSignal = $brokerSignal
-                        brokerText = $brokerText
-                        brokerDesc = $brokerDesc
-                        longCount = $longCount
-                        shortCount = $shortCount
-                        overall = $overall
-                        overallClass = $overallClass
-                        nextDayRisk = $nextDayRisk
-                        nextDayAction = $nextDayAction
-                        nextDayDesc = $nextDayDesc
-                    }) -Force
                 }
-                } catch {}
+                catch {}
             }
         }
-    } catch {
+    }
+    catch {
         Write-Host "Day trading enrichment error: $_" -ForegroundColor DarkYellow
     }
 
     Write-Host "[API] Parsed $($stocks.Count) stocks" -ForegroundColor Green
 
     return [PSCustomObject]@{
-        success = $true
-        count = $stocks.Count
+        success   = $true
+        count     = $stocks.Count
         targetUrl = $targetUrl
         queryTime = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        criteria = [PSCustomObject]@{
-            difWeek = ($difWeek -eq "1" -or $difWeek -eq "true")
-            days = $days
-            vol = $vol
-            months = $months
-            pct = $pct
+        criteria  = [PSCustomObject]@{
+            difWeek   = ($difWeek -eq "1" -or $difWeek -eq "true")
+            days      = $days
+            vol       = $vol
+            months    = $months
+            pct       = $pct
             filterLow = ($D -eq "1")
         }
-        stocks = $stocks
+        stocks    = $stocks
     }
 }
 
@@ -383,7 +400,8 @@ while ($listener.IsListening) {
                 $response.ContentType = "application/json; charset=utf-8"
                 $response.ContentLength64 = $buffer.Length
                 $response.OutputStream.Write($buffer, 0, $buffer.Length)
-            } catch {
+            }
+            catch {
                 Write-Host "API Error: $_" -ForegroundColor Red
                 $errObj = [PSCustomObject]@{ success = $false; error = $_.ToString() }
                 $json = $errObj | ConvertTo-Json
@@ -443,7 +461,8 @@ while ($listener.IsListening) {
                 $response.Headers.Add("Content-Disposition", "attachment; filename=`"$filename`"")
                 $response.ContentLength64 = $fullBytes.Length
                 $response.OutputStream.Write($fullBytes, 0, $fullBytes.Length)
-            } catch {
+            }
+            catch {
                 $response.StatusCode = 500
                 $err = [System.Text.Encoding]::UTF8.GetBytes("Error: $_")
                 $response.OutputStream.Write($err, 0, $err.Length)
@@ -461,13 +480,13 @@ while ($listener.IsListening) {
             $ext = [System.IO.Path]::GetExtension($filePath).ToLower()
             $mime = switch ($ext) {
                 ".html" { "text/html; charset=utf-8" }
-                ".htm"  { "text/html; charset=utf-8" }
-                ".css"  { "text/css; charset=utf-8" }
-                ".js"   { "application/javascript; charset=utf-8" }
+                ".htm" { "text/html; charset=utf-8" }
+                ".css" { "text/css; charset=utf-8" }
+                ".js" { "application/javascript; charset=utf-8" }
                 ".json" { "application/json; charset=utf-8" }
-                ".png"  { "image/png" }
-                ".jpg"  { "image/jpeg" }
-                ".svg"  { "image/svg+xml" }
+                ".png" { "image/png" }
+                ".jpg" { "image/jpeg" }
+                ".svg" { "image/svg+xml" }
                 default { "application/octet-stream" }
             }
 
@@ -475,13 +494,15 @@ while ($listener.IsListening) {
             $response.ContentType = $mime
             $response.ContentLength64 = $bytes.Length
             $response.OutputStream.Write($bytes, 0, $bytes.Length)
-        } else {
+        }
+        else {
             $response.StatusCode = 404
             $msg = [System.Text.Encoding]::UTF8.GetBytes("404 Not Found")
             $response.OutputStream.Write($msg, 0, $msg.Length)
         }
         $response.Close()
-    } catch {
+    }
+    catch {
         Write-Host "Request Error: $_" -ForegroundColor Red
     }
 }

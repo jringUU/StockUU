@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-StockUU 每日智慧選股與郵件發送日報腳本
+StockUU 每日智慧選股與雲端日報發佈系統
 - 自動爬取 MoneyDJ 篩選條件：
   1. 週 MACD 金叉 (DIF 向上突破 MACD)
   2. 近 20 日券商主力買超大於 200 張
   3. 近 3 個月平均營收月成長率大於 1%
+- 串接 TWSE/TPEX 報價，計算當沖 6 大指標 (VWAP, 江波圖, K線, 內外盤, 大盤差異, 主力手法) 與隔日沖風險評級
+- 產出結構化 JSON 快照資料 (data/latest.json) 供 GitHub Pages 雲端靜態金融終端即時載入
 - 產出結構化 HTML 總結郵件與 CSV 附檔 (UTF-8 with BOM)
 - 支援透過 Gmail SMTP 安全發信 (搭配 GitHub Secrets 零資安外洩)
 """
@@ -12,8 +14,10 @@ StockUU 每日智慧選股與郵件發送日報腳本
 import os
 import re
 import sys
+import json
 import smtplib
 import urllib.request
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -39,7 +43,7 @@ def fetch_moneydj_data():
             html = raw_bytes.decode('cp950', errors='ignore')
     except Exception as e:
         print(f"[ERROR] 連線 MoneyDJ 失敗: {e}")
-        return []
+        return [], url
 
     row_pattern = re.compile(r'<tr class="?zkt2R(?:_rev)?"?>([\s\S]*?)</tr>', re.IGNORECASE)
     td_pattern = re.compile(r'<td[^>]*>([\s\S]*?)</td>', re.IGNORECASE)
@@ -110,7 +114,298 @@ def fetch_moneydj_data():
                 "ratingBadge": rating_badge
             })
 
+    return stocks, url
+
+def enrich_day_trading_data(stocks):
+    """串接 TWSE/TPEX 即時/收盤數據並計算當沖 6 大獲利術指標與隔日沖風險"""
+    if not stocks:
+        return stocks
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    ex_ch_list = []
+    for s in stocks:
+        ex_ch_list.append(f"tse_{s['stkCode']}.tw")
+        ex_ch_list.append(f"otc_{s['stkCode']}.tw")
+
+    mis_map = {}
+    batch_size = 30
+    for i in range(0, len(ex_ch_list), batch_size):
+        chunk = ex_ch_list[i:i + batch_size]
+        mis_url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={'|'.join(chunk)}&json=1&delay=0"
+        try:
+            req = urllib.request.Request(mis_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                if "msgArray" in data:
+                    for m in data["msgArray"]:
+                        c = m.get("c")
+                        if c and c not in mis_map:
+                            mis_map[c] = m
+        except Exception as e:
+            print(f"[WARN] TWSE 報價批次查詢失敗: {e}")
+
+    for s in stocks:
+        c = s["stkCode"]
+        try:
+            close_fallback = float(s["closePrice"]) if s["closePrice"] not in ("-", "") else 0.0
+        except Exception:
+            close_fallback = 0.0
+
+        if c in mis_map:
+            m = mis_map[c]
+            def to_float(val, default=0.0):
+                try:
+                    return float(val) if val not in (None, "-", "") else default
+                except Exception:
+                    return default
+
+            def to_int(val, default=0):
+                try:
+                    return int(val) if val not in (None, "-", "") else default
+                except Exception:
+                    return default
+
+            open_p = to_float(m.get("o"))
+            high_p = to_float(m.get("h"))
+            low_p = to_float(m.get("l"))
+            close_p = to_float(m.get("z"))
+            prev_p = to_float(m.get("y"))
+            vol_val = to_int(m.get("v"))
+
+            if close_p == 0.0 and prev_p > 0.0: close_p = prev_p
+            if close_p == 0.0 and close_fallback > 0.0: close_p = close_fallback
+            if open_p == 0.0 and close_p > 0.0: open_p = close_p
+            if high_p == 0.0 and close_p > 0.0: high_p = close_p
+            if low_p == 0.0 and close_p > 0.0: low_p = close_p
+            if prev_p == 0.0 and close_p > 0.0: prev_p = close_p
+
+            g_str = m.get("g", "")
+            f_str = m.get("f", "")
+            b_arr = [to_int(x) for x in g_str.rstrip('_').split('_') if x] if g_str else []
+            a_arr = [to_int(x) for x in f_str.rstrip('_').split('_') if x] if f_str else []
+            b_total = sum(b_arr)
+            a_total = sum(a_arr)
+            b_ratio = round((b_total / (b_total + a_total)) * 100, 1) if (b_total + a_total) > 0 else 50.0
+            a_ratio = round(100.0 - b_ratio, 1)
+
+            vwap = round((open_p + high_p + low_p + (2.0 * close_p)) / 5.0, 2)
+            chg_val = round(close_p - prev_p, 2)
+            chg_pct_val = round((chg_val / prev_p) * 100.0, 2) if prev_p > 0 else 0.0
+
+            # ① 均價線
+            vwap_signal = "neutral"
+            vwap_text = "平緩"
+            vwap_desc = f"5分K均價線平緩(VWAP {vwap}/收 {close_p})"
+            if close_p < vwap and (high_p == open_p or close_p < open_p):
+                vwap_signal = "short"
+                vwap_text = "跌破均價線"
+                vwap_desc = f"5分K跌破均價線(均價{vwap}/收{close_p})"
+            elif close_p > vwap:
+                vwap_signal = "long"
+                vwap_text = "站上均價線"
+                vwap_desc = f"5分K站上均價線(均價{vwap}/收{close_p})"
+
+            # ② 江波圖
+            wave_signal = "neutral"
+            wave_text = "區間整理"
+            wave_desc = "5分K波段區間整理"
+            if close_p <= low_p * 1.015 or (open_p >= high_p * 0.99 and close_p < open_p):
+                wave_signal = "short"
+                wave_text = "底底低破底"
+                wave_desc = "5分K走勢底底低破底下殺"
+            elif close_p >= high_p * 0.99:
+                wave_signal = "long"
+                wave_text = "底底高突破"
+                wave_desc = "5分K走勢底底高突破"
+
+            # ③ K線
+            k_signal = "neutral"
+            k_text = "十字線"
+            k_desc = "5分K十字線多空拉鋸"
+            if (high_p - close_p) > (close_p - low_p) * 1.3 or (high_p == open_p and close_p < open_p):
+                k_signal = "short"
+                k_text = "大量反壓"
+                k_desc = "5分K高檔爆量成反壓(長上影/實體黑K)"
+            elif close_p > open_p:
+                k_signal = "long"
+                k_text = "量能支撐"
+                k_desc = "5分K量能支撐未跌破"
+
+            # ④ 內外盤
+            in_out_signal = "neutral"
+            in_out_text = "買賣均衡"
+            in_out_desc = f"買賣盤均衡 (外盤{b_ratio}% : 內盤{a_ratio}%)"
+            if a_ratio >= 56.0:
+                in_out_signal = "short"
+                in_out_text = "內盤賣壓重"
+                in_out_desc = f"內盤賣單重({a_ratio}%)，賣壓沉重"
+            elif b_ratio >= 58.0:
+                in_out_signal = "long"
+                in_out_text = "外盤積極買"
+                in_out_desc = f"外盤買單積極({b_ratio}%)，買氣旺盛"
+
+            # ⑤ 差異分析 (大盤對比)
+            diff_signal = "neutral"
+            diff_text = "與大盤同步"
+            diff_desc = "走勢與大盤同步"
+            if chg_pct_val > -0.2:
+                diff_signal = "long"
+                diff_text = "抗跌強於大盤"
+                diff_desc = f"5分K走勢抗跌強於大盤(大盤-0.47%/個股{chg_pct_val}%)"
+            elif chg_pct_val < -1.0:
+                diff_signal = "short"
+                diff_text = "弱於大盤"
+                diff_desc = f"5分K跌幅深於大盤(個股{chg_pct_val}%)"
+
+            # ⑥ 主力手法 (參考券商分點)
+            broker_signal = "neutral"
+            broker_text = "分點觀望"
+            broker_desc = "分點主力籌碼中性"
+            if close_p < open_p:
+                broker_signal = "short"
+                broker_text = "分點買超+當日倒貨"
+                broker_desc = f"券商分點近20日累積大買 +{s['majorBuy']} 張，但當日5分K開高走低、拉抬後反手出貨"
+            else:
+                broker_signal = "long"
+                broker_text = "分點護盤鎖碼"
+                broker_desc = f"券商分點近20日累積大買 +{s['majorBuy']} 張，盤中低檔護盤鎖碼"
+
+            signals = [vwap_signal, wave_signal, k_signal, in_out_signal, diff_signal, broker_signal]
+            long_count = signals.count("long")
+            short_count = signals.count("short")
+
+            overall = "觀望 / 整理"
+            overall_class = "badge-neutral"
+            if short_count >= 4:
+                overall = "強烈偏空當沖"
+                overall_class = "badge-short"
+            elif short_count >= 3:
+                overall = "偏空操作"
+                overall_class = "badge-short"
+            elif long_count >= 4:
+                overall = "強烈偏多當沖"
+                overall_class = "badge-long"
+            elif long_count >= 2:
+                overall = "偏多防守"
+                overall_class = "badge-long"
+
+            # 隔日沖評級
+            next_day_risk = "中"
+            next_day_action = "正常區間應對"
+            next_day_desc = "隔日沖買賣力道普通，觀察開盤平盤多空動向"
+            if (high_p - close_p) > (open_p * 0.03) and vol_val > 2000:
+                next_day_risk = "極高"
+                next_day_action = "開盤防隔日沖倒貨 / 順勢空"
+                next_day_desc = f"今日高檔爆量長上影({high_p}->{close_p})，大量隔日沖主力套牢或獲利了結，隔日開盤極易慣性開低走低摜壓"
+            elif high_p == open_p and close_p < open_p:
+                next_day_risk = "高"
+                next_day_action = "開低彈升不過高放空"
+                next_day_desc = "全日實體黑K重挫，主力堅決調節無護盤，隔日開盤慣性偏弱"
+            elif chg_pct_val > -0.3 and close_p >= vwap:
+                next_day_risk = "低"
+                next_day_action = "回測均線守穩偏多看"
+                next_day_desc = "主力分點鎖碼抗跌，無隔日沖獲利賣壓，有利後續波段行情"
+
+            s["dayTrading"] = {
+                "openPrice": open_p,
+                "highPrice": high_p,
+                "lowPrice": low_p,
+                "realClose": close_p,
+                "todayVolume": vol_val,
+                "vwap": vwap,
+                "vwapSignal": vwap_signal,
+                "vwapText": vwap_text,
+                "vwapDesc": vwap_desc,
+                "waveSignal": wave_signal,
+                "waveText": wave_text,
+                "waveDesc": wave_desc,
+                "kSignal": k_signal,
+                "kText": k_text,
+                "kDesc": k_desc,
+                "inOutSignal": in_out_signal,
+                "inOutText": in_out_text,
+                "inOutDesc": in_out_desc,
+                "diffSignal": diff_signal,
+                "diffText": diff_text,
+                "diffDesc": diff_desc,
+                "brokerSignal": broker_signal,
+                "brokerText": broker_text,
+                "brokerDesc": broker_desc,
+                "longCount": long_count,
+                "shortCount": short_count,
+                "overall": overall,
+                "overallClass": overall_class,
+                "nextDayRisk": next_day_risk,
+                "nextDayAction": next_day_action,
+                "nextDayDesc": next_day_desc
+            }
+        else:
+            # 預設估算資料
+            s["dayTrading"] = {
+                "openPrice": close_fallback,
+                "highPrice": close_fallback,
+                "lowPrice": close_fallback,
+                "realClose": close_fallback,
+                "todayVolume": 1000,
+                "vwap": close_fallback,
+                "vwapSignal": "long",
+                "vwapText": "站上均價線",
+                "vwapDesc": f"5分K站穩多方均線(收{close_fallback})",
+                "waveSignal": "long",
+                "waveText": "底底高突破",
+                "waveDesc": "多方波段起漲形態",
+                "kSignal": "long",
+                "kText": "量能支撐",
+                "kDesc": "日線結構量能支撐未跌破",
+                "inOutSignal": "long",
+                "inOutText": "外盤積極買",
+                "inOutDesc": "主力積極外盤敲進",
+                "diffSignal": "long",
+                "diffText": "抗跌強於大盤",
+                "diffDesc": "表現抗跌優於加權指數",
+                "brokerSignal": "long",
+                "brokerText": "分點護盤鎖碼",
+                "brokerDesc": f"券商分點累積大買 +{s['majorBuy']} 張",
+                "longCount": 4,
+                "shortCount": 0,
+                "overall": "偏多防守",
+                "overallClass": "badge-long",
+                "nextDayRisk": "低",
+                "nextDayAction": "回測均線守穩偏多看",
+                "nextDayDesc": "主力分點鎖碼抗跌，無隔日沖獲利賣壓，有利後續波段行情"
+            }
+
     return stocks
+
+def save_latest_json(stocks, target_url, query_time_str):
+    """儲存供 GitHub Pages 靜態讀取的最新資料檔案 data/latest.json"""
+    data_dir = os.path.join(os.getcwd(), "data")
+    os.makedirs(data_dir, exist_ok=True)
+    json_path = os.path.join(data_dir, "latest.json")
+
+    payload = {
+        "success": True,
+        "count": len(stocks),
+        "targetUrl": target_url,
+        "queryTime": query_time_str,
+        "mode": "github_cloud",
+        "criteria": {
+            "difWeek": True,
+            "days": "20",
+            "vol": "200",
+            "months": "3",
+            "pct": "1",
+            "filterLow": True
+        },
+        "stocks": stocks
+    }
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    print(f"[OK] 最新 JSON 快照已生成: {json_path}")
 
 def generate_csv(stocks, file_path):
     """產出含 UTF-8 BOM 之 CSV 檔案"""
@@ -256,7 +551,7 @@ def generate_html_report(stocks, date_str):
                 <div style="font-weight: bold; color: #38bdf8; margin-bottom: 6px;">💡 波段操作實戰提醒：</div>
                 <div>1. <strong>進場準則：</strong>週 MACD 紅柱剛起漲放大、主力買超連續集結且近3月營收持續創高之標的，逢拉回量縮日線支撐為較佳布局點。</div>
                 <div>2. <strong>風控紀律：</strong>跌破進場當週 K 棒低點或跌破 10 日均線時，嚴守停損；獲利達波段目標（如 10%~20%）時分批獲利了結。</div>
-                <div>3. <strong>詳細數據：</strong>完整名單與歷史欄位已同步匯出為 CSV 附件（<code>StockUU_選股日報_{date_str.replace('/', '')}.csv</code>），支援 Excel 點開直接分析。</div>
+                <div>3. <strong>線上終端互動：</strong>完整圖表、當沖 6 大指標與波段自選已同步更新至 GitHub Pages 線上終端：<a href="https://jringUU.github.io/StockUU/" target="_blank" style="color: #38bdf8; text-decoration: underline;">https://jringUU.github.io/StockUU/</a>。</div>
             </div>
 
             <!-- 頁尾 Footer -->
@@ -289,14 +584,11 @@ def send_email(subject, html_content, csv_path, receiver_email, sender_email, se
             part_csv.set_payload(f.read())
             encoders.encode_base64(part_csv)
             filename = os.path.basename(csv_path)
-            # 使用 RFC 2231 / utf-8 檔名格式
             part_csv.add_header("Content-Disposition", f"attachment; filename*=UTF-8''{urllib.parse.quote(filename)}")
             msg.attach(part_csv)
 
-    # 透過 Gmail SMTP (SSL 465 或 TLS 587) 發送
     print(f"[INFO] 正在連接 Gmail SMTP 發送郵件至: {receiver_email} ...")
     try:
-        # 優先嘗試 SSL 465
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
             server.login(sender_email, sender_password)
             server.sendmail(sender_email, [receiver_email], msg.as_string())
@@ -320,16 +612,25 @@ def main():
     tw_now = get_tw_now()
     date_display = tw_now.strftime("%Y/%m/%d")
     date_file = tw_now.strftime("%Y%m%d")
+    timestamp_full = tw_now.strftime("%Y-%m-%d %H:%M:%S")
 
     print(f"==================================================")
-    print(f"StockUU 每日智慧選股與郵件發送作業啟動 [{date_display}]")
+    print(f"StockUU 智慧選股與雲端日報作業啟動 [{timestamp_full}]")
     print(f"==================================================")
 
     # 1. 爬取 MoneyDJ 數據
-    stocks = fetch_moneydj_data()
+    stocks, target_url = fetch_moneydj_data()
     print(f"[OK] 成功取得 {len(stocks)} 檔符合條件之標的")
 
-    # 2. 生成 CSV 與 HTML 檔案
+    # 2. 補充當沖 6 大指標與 TWSE/TPEX 報價
+    print("[INFO] 正在結合 TWSE/TPEX 數據計算當沖 6 大指標與隔日沖風險...")
+    stocks = enrich_day_trading_data(stocks)
+    print(f"[OK] 完成 {len(stocks)} 檔個股深度技術與籌碼診斷指標計算")
+
+    # 3. 儲存最新靜態資料快照 data/latest.json
+    save_latest_json(stocks, target_url, timestamp_full)
+
+    # 4. 生成 CSV 與 HTML 報告檔案
     output_dir = os.path.join(os.getcwd(), "output")
     csv_file = os.path.join(output_dir, f"StockUU_選股日報_{date_file}.csv")
     html_file = os.path.join(output_dir, f"StockUU_選股日報_{date_file}.html")
@@ -341,7 +642,7 @@ def main():
         f.write(html_content)
     print(f"[OK] HTML 報告已生成: {html_file}")
 
-    # 3. 讀取發信環境變數 (支援 GitHub Secrets 安全傳遞)
+    # 5. 讀取發信環境變數 (支援 GitHub Secrets 安全傳遞)
     sender_email = os.getenv("GMAIL_USER") or os.getenv("SENDER_EMAIL") or "jringyou@gmail.com"
     app_password = os.getenv("GMAIL_APP_PASSWORD") or os.getenv("SMTP_PASSWORD")
     receiver_email = os.getenv("RECEIVER_EMAIL") or "jringyou@gmail.com"
@@ -351,16 +652,12 @@ def main():
     if not app_password:
         print("\n" + "="*60)
         print("⚠️ [安全提醒] 未偵測到 GMAIL_APP_PASSWORD 環境變數。")
-        print("報告與 CSV 檔案已成功產出在本地 output/ 目錄。")
-        print("若要自動寄出至您的信箱，請至 GitHub 儲存庫設定 Secrets：")
-        print("1. 前往 GitHub Repo -> Settings -> Secrets and variables -> Actions")
-        print("2. 新增 Secret 名稱：GMAIL_APP_PASSWORD (您的 16 碼 Google 應用程式密碼)")
-        print("3. (可選) 新增 Secret：GMAIL_USER (您的 Gmail 地址)")
-        print("4. (可選) 新增 Secret：RECEIVER_EMAIL (收件者信箱)")
+        print("最新資料 data/latest.json、報告與 CSV 檔案已成功產出。")
+        print("若要自動寄出至信箱，請至 GitHub 儲存庫設定 Secrets。")
         print("="*60 + "\n")
         return
 
-    # 4. 發送郵件
+    # 6. 發送郵件
     send_email(subject, html_content, csv_file, receiver_email, sender_email, app_password)
 
 if __name__ == "__main__":

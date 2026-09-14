@@ -1,33 +1,59 @@
-name: 每日晚上 10 點選股與郵件發送日報
+name: 每日選股日報與 GitHub Pages 自動發佈
 
 on:
   schedule:
     # 台灣時間 (UTC+8) 每日晚上 22:00 = 國際標準時間 (UTC) 14:00
     - cron: '0 14 * * *'
-  workflow_dispatch: # 支援在 GitHub 網頁 Actions 頁籤隨時手動點擊「Run workflow」一鍵測試
+  workflow_dispatch: # 支援在 GitHub 網頁 Actions 頁籤隨時手動點擊「Run workflow」一鍵測試與發佈
+  push:
+    branches: [ main ] # 當推送程式碼至 main 分支時自動執行並部署至 GitHub Pages
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
-  daily-screen-and-email:
-    name: 執行 MoneyDJ 智慧選股與發送日報
+  screen-and-build:
+    name: 執行選股、生成快照與發送日報
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
     steps:
       - name: 📥 下載專案代碼 (Checkout)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 🐍 設定 Python 3.11 環境
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: 🚀 執行選股、生成報告與發送郵件
+      - name: 🚀 執行選股、生成快照與發送郵件
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
         run: |
           python scripts/daily_report.py
+
+      - name: 💾 同步最新選股數據至 Git 倉庫
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/latest.json
+          if git diff --staged --quiet; then
+            echo "快照資料無異動，無需提交"
+          else
+            git commit -m "chore(data): 自動更新每日選股快照 [skip ci]"
+            git push
+          fi
 
       - name: 📦 保存日報與 CSV 檔案為 GitHub 構件 (Artifact)
         if: always()
@@ -36,3 +62,23 @@ jobs:
           name: StockUU_每日選股報告
           path: output/
           retention-days: 14
+
+      - name: ⚙️ 設定 GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📦 打包前端與資料為 Pages 構件
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+  deploy-pages:
+    name: 🌐 部署至 GitHub Pages
+    needs: screen-and-build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 🚀 發佈至 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

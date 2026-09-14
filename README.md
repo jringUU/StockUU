@@ -2,7 +2,30 @@
 
 這套工具專為自動執行 **MoneyDJ（嘉實資訊）選股專家系統** 的多因子篩選策略所設計，支援技術面、籌碼面、營收獲利面條件，並能**即時展示篩選結果**、**一鍵匯出相容 Excel 的 CSV 檔案**，以及**每日晚上 10:00 自動執行並將總結報告與 CSV 寄送至您的電子郵件**。
 
-GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jringUU/StockUU)
+- 🌐 **GitHub Pages 線上互動終端**：[https://jringUU.github.io/StockUU/](https://jringUU.github.io/StockUU/)
+- 📦 **GitHub 原始碼儲存庫**：[https://github.com/jringUU/StockUU](https://github.com/jringUU/StockUU)
+
+---
+
+## 🌐 線上執行：免安裝、跨平台金融終端 (GitHub Pages)
+
+本系統已改編為**支援 GitHub Pages 雲端免伺服器直接執行**：
+- **隨開即用**：任何人在任何裝置（電腦、手機、iPhone、Android、平板）皆可直接透過網址開啟使用。
+- **資料自動更新**：GitHub Actions 每日 22:00 自動排程爬取最新盤勢並更新雲端快照（`data/latest.json`）。
+- **全功能互動**：
+  1. 🔍 **即時搜尋**：輸入代號或中文名稱即時過濾標的。
+  2. 🔀 **欄位排序**：支援點擊收盤價、漲跌幅、主力買超、營收月增率、DIF、MACD 等動態排序。
+  3. 🎯 **波段自選**：勾選目標股票，同步連動至「波段手法指標」分頁進行深層檢驗。
+  4. 📈 **MACD(12) 週線圖**：內嵌走勢微圖，點擊立即放大檢視金叉起漲突破點。
+  5. ⚡ **當沖 6 大指標診斷**：依據《Stock01.pdf》自動計算均價線、江波圖、K線形態、內外盤比、族群差異分析與分點主力手法。
+  6. 📥 **純前端 CSV 匯出**：智慧選股清單、當沖診斷表、波段手法指標表三種報表，一鍵下載含 UTF-8 BOM 之 Excel 相容檔案。
+
+### 🛠️ 如何在 GitHub 倉庫啟用 Pages（只需設定一次）：
+1. 前往您的 GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jringUU/StockUU)
+2. 點擊頂部 **Settings**（設定） -> 左側側邊欄點選 **Pages**。
+3. 在 **Build and deployment** 下方的 **Source**，下拉選擇 **GitHub Actions**。
+4. 設定完成！每當程式碼推送或排程執行時，系統會自動將最新選股終端發佈至：  
+   👉 **`https://jringUU.github.io/StockUU/`**
 
 ---
 
@@ -22,11 +45,12 @@ GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jring
 
 本專案已配置 GitHub Actions 雲端工作流（`.github/workflows/daily_report.yml`）：
 - **排程時間**：每天晚上 **22:00（台灣時間 UTC+8 / UTC 14:00）** 自動在 GitHub 雲端執行。
-- **無人值守**：**您的電腦即使關機、休眠，GitHub 雲端依然會準時執行並寄出信件**。
+- **無人值守**：**您的電腦即使關機、休眠，GitHub 雲端依然會準時執行、更新 GitHub Pages 並寄出信件**。
 - **產出內容**：
-  1. 結構化 HTML 策略總結信件（含統計卡片、符合標的清單、多頭評級、實戰操作建議）。
-  2. 夾帶 `StockUU_選股日報_YYYYMMDD.csv` 附件（含 UTF-8 BOM，Excel 點開繁中絕不亂碼）。
-- **手動一鍵觸發**：在 GitHub 倉庫頁面點擊 **Actions** 分頁 -> 選擇「每日晚上 10 點選股與郵件發送日報」-> 點擊 **Run workflow** 即可隨時立即測試發信。
+  1. 更新線上終端快照 `data/latest.json` 並自動發佈至 GitHub Pages。
+  2. 結構化 HTML 策略總結信件（含統計卡片、符合標的清單、多頭評級、實戰操作建議）。
+  3. 夾帶 `StockUU_選股日報_YYYYMMDD.csv` 附件（含 UTF-8 BOM，Excel 點開繁中絕不亂碼）。
+- **手動一鍵觸發**：在 GitHub 倉庫頁面點擊 **Actions** 分頁 -> 選擇「每日選股日報與 GitHub Pages 自動發佈」-> 點擊 **Run workflow** 即可隨時立即測試發信與更新網頁。
 
 ---
 
@@ -57,33 +81,28 @@ GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jring
      **內容**：`jringyou@gmail.com`（接收日報的信箱）。
 
 #### 第三步：測試發信
-前往 GitHub 倉庫頂部的 **Actions** 分頁 -> 點選左側「每日晚上 10 點選股與郵件發送日報」-> 點擊右側 **Run workflow** 按鈕。約 30 秒後，您的 Gmail 即可收到當日的選股日報與 CSV 附件！
+前往 GitHub 倉庫頂部的 **Actions** 分頁 -> 點選左側「每日選股日報與 GitHub Pages 自動發佈」-> 點擊右側 **Run workflow** 按鈕。約 30 秒後，您的 Gmail 即可收到當日的選股日報與 CSV 附件，且網頁亦同步自動部署！
 
 ---
 
-## 🚀 本機使用方法
+## 🚀 本機使用方法 (可選)
 
-### 方法一：獨立專業選股金融終端（推薦）
+### 方法一：獨立專業選股金融終端（本機動態模式）
 
 1. 雙擊執行目錄中的 `start.bat`。
 2. 系統會自動在背景啟動微型本機伺服器，並開啟瀏覽器：`http://localhost:8080/`
-3. 包含四大核心實戰分頁：
-   - **🏠 智慧選股**：MoneyDJ 多因子即時自選條件篩選，表格內嵌 MACD 走勢微圖，支援一鍵自選波段與匯出 CSV。
-   - **🌊 波段手法指標**：波段 6 大核心手法指標實戰檢驗表（週 MACD 金叉、均線多頭、主力鎖碼、營收月增、量價型態、月線防守 SOP）。
-   - **⚡ 當沖指標**：嚴格依據《Stock01.pdf》檢核 6 大指標（均價線、江波圖、K線形態、內外盤比、族群差異分析、券商分點主力手法）。
-   - **🏛️ 大戶隔日沖**：分析主力分點買超集中度，預防隔日開盤倒貨風險。
+3. 本機模式支援自訂任意參數即時向 MoneyDJ 發起全新條件爬取。
 4. 關閉方式：關閉彈出的 PowerShell 伺服器黑色視窗即可。
 
 ### 方法二：本機手動執行每日選股日報與匯出
 
 - 雙擊執行 `run_daily_report.bat`。
-- 系統會立即爬取 MoneyDJ 最新數據，並在 `output/` 目錄生成當日的 HTML 總結報告與 CSV 檔案。
+- 系統會立即爬取 MoneyDJ 最新數據，並在 `output/` 目錄生成當日的 HTML 總結報告與 CSV 檔案，同時同步更新 `data/latest.json`。
 
-### 方法三：在 MoneyDJ 官方頁面直接使用（書籤工具）
+### 方法三：一鍵推送最新程式碼與快照至 GitHub
 
-若您直接在 MoneyDJ 官方選股頁面：
-1. 開啟 `moneydj_bookmarklet.js`，複製全部代碼並貼入瀏覽器 Console。
-2. 點擊出現的藍色按鈕即可一鍵跳轉並取得包含指定條件的篩選結果與匯出 CSV。
+- 雙擊執行 `push_to_github.bat`。
+- 系統會自動進行 `git add .`、建立提交並推送到 GitHub 遠端，自動觸發雲端網頁更新！
 
 ---
 
@@ -93,18 +112,21 @@ GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jring
 StockUU/
 ├── .github/
 │   └── workflows/
-│       └── daily_report.yml    # GitHub Actions 每日 22:00 自動執行與發信工作流
+│       └── daily_report.yml    # GitHub Actions 每日 22:00 自動執行、更新 Pages 與發信工作流
+├── data/
+│   └── latest.json             # 每日最新選股快照數據 (供 GitHub Pages 免後端即時載入)
 ├── scripts/
-│   ├── daily_report.py         # Python 爬蟲、HTML 總結與 Gmail SMTP 發信腳本
+│   ├── daily_report.py         # Python 爬蟲、當沖指標計算、HTML 總結與 Gmail SMTP 發信腳本
 │   └── daily_report.ps1        # PowerShell 本機爬蟲、HTML 與 CSV 產出腳本
-├── index.html                  # 專業金融終端選股前端介面
+├── index.html                  # 專業金融終端選股前端介面 (支援 GitHub 雲端與本機雙模式)
 ├── style.css                   # 深色主題金融終端樣式庫 (台股紅漲綠跌規範)
-├── app.js                      # 前端篩選、排序、搜尋與連動核心
+├── app.js                      # 前端智慧雙模載入、篩選、排序、搜尋與連動核心
 ├── server.ps1                  # 本機高效能 HTTP 伺服器
 ├── start.bat                   # 本機一鍵啟動終端批次檔
 ├── run_daily_report.bat        # 本機一鍵執行日報產出批次檔
+├── push_to_github.bat          # 一鍵提交與推送至 GitHub 批次檔
 ├── moneydj_bookmarklet.js      # MoneyDJ 官方頁面自動化工具代碼
 ├── .gitignore                  # Git 忽略檔案清單 (排除備份與暫存)
-├── README.md                   # 專案說明文件與資安設定指引
+├── README.md                   # 專案說明文件、GitHub Pages 設定與資安指引
 └── CHANGELOG.md                # 專案異動歷史記錄檔
 ```

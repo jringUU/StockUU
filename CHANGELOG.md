@@ -20,6 +20,39 @@
 
 ## 📝 異動歷史記錄
 
+### [2026-09-14 20:12:00] - 改編為可在 GitHub 上發佈執行 (支援 GitHub Pages 線上終端與 Actions 自動化發佈)
+- **異動目的**：依使用者需求「把程式改編成可以在github上發佈執行」，將系統升級為可在 GitHub Pages 雲端免伺服器展示執行，並結合 GitHub Actions 每日自動排程爬取最新盤勢、計算 6 大當沖指標、輸出靜態快照資料並自動部署至 GitHub Pages 的完整現代化雙模架構。
+- **異動檔案**：
+  - `[新增]` `data/latest.json`（每日最新選股快照數據，供 GitHub Pages 靜態環境免後端即時載入）
+  - `[修改]` `app.js`（實作智慧前後端雙模切換、純前端自適應過濾、模式 UI 標籤連動，全面支援 GitHub Pages 離線/雲端獨立執行）
+  - `[修改]` `index.html`（頂部導航列新增「雲端 Actions」連結按鈕與專屬「GitHub 雲端模式」動態狀態橫幅）
+  - `[修改]` `style.css`（新增 `.cloud-banner` 雲端模式提醒橫幅樣式）
+  - `[修改]` `scripts/daily_report.py`（串接 TWSE/TPEX 報價、計算 6 大當沖與隔日沖指標、生成 `data/latest.json` 快照資料供 GitHub Pages 讀取）
+  - `[修改]` `scripts/daily_report.ps1`（同步增強本機選股爬蟲與當沖指標計算，產出 `data/latest.json` 快照）
+  - `[修改]` `.github/workflows/daily_report.yml`（升級為 GitHub Pages 官方自動化發佈工作流，每日定時無人值守更新快照並部署網頁）
+  - `[修改]` `push_to_github.bat`（升級為自動檢查異動、自動建立 commit 並推送至 GitHub 遠端 main 分支）
+  - `[修改]` `README.md`（完整補充 GitHub Pages 線上終端網址 `https://jringUU.github.io/StockUU/`、啟用步驟、雙模運作指引）
+  - `[修改]` `CHANGELOG.md`（追加本異動紀錄）
+- **備份存放目錄**：`backups/backup_20260914_200744/` (最新) 與 `backups/backup_20260909_210721/` (次新)
+- **詳細修改內容**：
+  1. **GitHub Pages 免後端發佈架構**：
+     - 解決純靜態託管環境無法執行 PowerShell 後端（`server.ps1`）與瀏覽器 CORS/混合內容阻擋問題。
+     - 透過 GitHub Actions 雲端自動化管線在每日 22:00（或手動一鍵觸發）預先爬取並運算完整指標，產出 `data/latest.json`。
+  2. **前端雙模切換 (Dual-Mode)**：
+     - `app.js` 智慧探測：若在 GitHub Pages 或本機伺服器未開啟，自動載入 `data/latest.json` 快照，搜尋、排序、波段勾選、MACD 圖表、當沖 6 大指標彈窗與 3 種 CSV 匯出皆 100% 保持純前端運行。
+     - 本機執行 `start.bat` 時優先連線 `server.ps1` 即時動態爬取，維持雙向相容。
+  3. **自動化工作流升級**：
+     - 配置官方 `actions/deploy-pages@v4`，無人值守定時排程更新資料與發佈。
+  4. **嚴格遵行規範**：
+     - 修改前已建立 `backups/backup_20260914_200744/` 完整備份，備份目錄維持僅保留最新 2 份。
+
+### [2026-09-09 21:07:00] - 修復 push_to_github.bat 終端文字編碼與換行格式
+- **異動目的**：修復批次檔被外部編輯器儲存時編碼失真導致亂碼問題，重新標準化為 UTF-8 without BOM 與 CRLF 換行，確保 Windows 命令提示字元（cmd）中文正常顯示。
+- **異動檔案**：
+  - `[修改]` `push_to_github.bat`（恢復純淨繁體中文提示與路徑）
+  - `[修改]` `CHANGELOG.md`（追加本異動紀錄）
+- **備份存放目錄**：`backups/backup_20260909_210721/` (最新) 與 `backups/backup_20260909_204034/` (次新)
+
 ### [2026-09-09 20:46:00] - 支援部署至 GitHub (StockUU) 與配置 GitHub Actions 每日晚上 10 點自動選股郵件日報
 - **異動目的**：依使用者需求「把程式放到 https://github.com/jringUU/StockUU 並做每天晚上10點自動執行並匯出總結文件寄到jringyou@gmail.com，我的專案是public，我的mail在裏面會不會有資安問題」，建立完整的 GitHub 倉庫架構、GitHub Actions 雲端排程工作流（每日 22:00 自動無人值守執行）、產出高質感 HTML 總結與 CSV 附檔寄送至信箱，並全面採用 GitHub Secrets 零洩漏資安架構杜絕任何密碼外洩風險。
 - **異動檔案**：
