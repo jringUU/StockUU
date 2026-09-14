@@ -107,7 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initEvents();
     setupBookmarklet();
-    // 進入網頁自動觸發一次預設條件篩選與診斷
+    // 主畫面直接向 MoneyDJ 官方伺服器 (concords.moneydj.com) 發送選股指令，進行即時動態運算
+    runMainMoneyDJScreen(false);
+    // 背景預載當沖與波段深度量化診斷指標
     runScreening();
 });
 
@@ -147,12 +149,50 @@ function initTabs() {
 }
 
 function initEvents() {
-    btnRunFilter.addEventListener('click', runScreening);
+    btnRunFilter.addEventListener('click', () => {
+        runMainMoneyDJScreen(true);
+        runScreening();
+    });
     btnExportCSV.addEventListener('click', exportToCSV);
     btnExportDtCSV.addEventListener('click', exportDayTradingCSV);
     if (btnExportWaveCSV) btnExportWaveCSV.addEventListener('click', exportWaveStrategyCSV);
-    btnResetDefault.addEventListener('click', resetDefaults);
-    btnRetry.addEventListener('click', runScreening);
+    btnResetDefault.addEventListener('click', () => {
+        resetDefaults();
+        runMainMoneyDJScreen(false);
+    });
+    btnRetry.addEventListener('click', () => {
+        runMainMoneyDJScreen(true);
+        runScreening();
+    });
+
+    // 主畫面量化指標視圖切換
+    const btnToggleQuantView = document.getElementById('btnToggleQuantView');
+    if (btnToggleQuantView) {
+        btnToggleQuantView.addEventListener('click', toggleQuantView);
+    }
+
+    // 主畫面 MoneyDJ 即時運算視窗控制項
+    const btnReloadMainLive = document.getElementById('btnReloadMainLive');
+    if (btnReloadMainLive) {
+        btnReloadMainLive.addEventListener('click', () => runMainMoneyDJScreen(false));
+    }
+    const btnOpenMainNewTab = document.getElementById('btnOpenMainNewTab');
+    if (btnOpenMainNewTab) {
+        btnOpenMainNewTab.addEventListener('click', () => {
+            window.open(getMoneyDJQueryUrl(), '_blank');
+        });
+    }
+    const btnCopyMainUrl = document.getElementById('btnCopyMainUrl');
+    if (btnCopyMainUrl) {
+        btnCopyMainUrl.addEventListener('click', () => {
+            const url = getMoneyDJQueryUrl();
+            navigator.clipboard.writeText(url).then(() => {
+                const orig = btnCopyMainUrl.innerHTML;
+                btnCopyMainUrl.innerHTML = '<span class="icon">✅</span> 已複製！';
+                setTimeout(() => { btnCopyMainUrl.innerHTML = orig; }, 2000);
+            });
+        });
+    }
 
     const btnDirectMoneyDJRun = document.getElementById('btnDirectMoneyDJRun');
     if (btnDirectMoneyDJRun) {
@@ -377,6 +417,54 @@ function getMoneyDJQueryUrl() {
 function runMoneyDJDirectScreen() {
     const url = getMoneyDJQueryUrl();
     window.open(url, '_blank');
+}
+
+// 主畫面直接向 MoneyDJ 官方伺服器 (concords.moneydj.com) 發送選股指令，進行即時動態運算
+function runMainMoneyDJScreen(scrollIntoView = false) {
+    const iframe = document.getElementById('mainMoneydjIframe');
+    const urlDisplay = document.getElementById('mainIframeUrlDisplay');
+    const loadingBar = document.getElementById('mainIframeLoadingBar');
+    const targetUrl = getMoneyDJQueryUrl();
+
+    if (urlDisplay) urlDisplay.textContent = targetUrl;
+    currentQueryUrl = targetUrl;
+
+    if (iframe) {
+        if (loadingBar) loadingBar.style.display = 'flex';
+        iframe.src = targetUrl;
+        iframe.onload = () => {
+            if (loadingBar) loadingBar.style.display = 'none';
+        };
+    }
+
+    if (scrollIntoView) {
+        const liveSec = document.getElementById('mainLiveSection');
+        if (liveSec) {
+            liveSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+// 切換主畫面當沖 6 大量化指標診斷表展開/收合
+function toggleQuantView() {
+    const metaSec = document.getElementById('resultsMetaSection');
+    const tableSec = document.getElementById('tableContainer');
+    const toggleText = document.getElementById('toggleQuantText');
+
+    const isVisible = tableSec && tableSec.style.display !== 'none';
+    if (isVisible) {
+        if (metaSec) metaSec.style.display = 'none';
+        if (tableSec) tableSec.style.display = 'none';
+        if (toggleText) toggleText.textContent = '展開當沖 6 大診斷表';
+    } else {
+        if (metaSec) metaSec.style.display = 'block';
+        if (tableSec) tableSec.style.display = 'block';
+        if (toggleText) toggleText.textContent = '隱藏當沖 6 大診斷表';
+        if (tableSec) tableSec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (allStocks.length === 0) {
+            runScreening();
+        }
+    }
 }
 
 // 載入或重新整理 MoneyDJ 內嵌視窗

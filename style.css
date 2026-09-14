@@ -1887,6 +1887,18 @@ body {
     background: #ffffff;
 }
 
+/* 主畫面 MoneyDJ 原站即時運算區塊 */
+.live-screen-section {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 15px rgba(6, 182, 212, 0.15);
+}
+
+.live-screen-section .table-header-bar {
+    margin-bottom: 1rem;
+}
+
 /* ======================================================== */
 /* 全頁面徹底消除左右軸 (Zero Horizontal Scrollbars Guarantee) */
 /* ======================================================== */
