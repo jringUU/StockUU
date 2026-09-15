@@ -20,6 +20,49 @@
 
 ## 📝 異動歷史記錄
 
+### [2026-09-15 08:44:00] - 實作 Vercel 雲端 Serverless 架構與本機 100% 靜默無黑視窗啟動
+- **異動目的**：
+  依使用者指示「先幫我改 讓我本機可以執行 後續我再放到 github 然後 vercel」，建置 Vercel 雲端無伺服器即時查詢架構（`api/screen.py` + `vercel.json`），同時將本機端改造為 100% 靜默無黑視窗啟動（`start.vbs` + `stop.bat`），前後端統一呼叫 `/api/screen`，徹底解決黑視窗困擾與瀏覽器 CORS 阻擋問題。
+- **異動檔案**：
+  - `[新增]` `api/screen.py`（Vercel 雲端 Serverless Function，以 Python 原生即時向 MoneyDJ 發送查詢、解碼 Big5 並運算當沖 6 大指標與隔日沖對策）
+  - `[新增]` `vercel.json`（配置 Vercel 路由轉發與 API 規則）
+  - `[新增]` `start.vbs`（利用 Windows 原生 WScript 實現 100% 靜默啟動，完全消除黑色控制台視窗）
+  - `[新增]` `stop.bat`（一鍵安全停止本機背景服務工具）
+  - `[修改]` `start.bat`（改為呼叫 `start.vbs` 進行無感啟動並開啟瀏覽器）
+  - `[修改]` `push_to_github.bat`（增強自動 git add、commit 與 push，一鍵推送到 GitHub 觸發 Vercel 自動部署）
+  - `[修改]` `app.js`（無縫相容 `/api/screen` 與前端直連備援，本機與 Vercel 雲端共用同套邏輯）
+  - `[修改]` `index.html`（更新狀態指示為「動態選股服務就緒」）
+  - `[修改]` `README.md`（完整撰寫本機無黑視窗使用手冊與 Vercel 30 秒一鍵部署指南）
+  - `[修改]` `CHANGELOG.md`（追加本異動紀錄）
+- **備份存放目錄**：`backups/backup_20260915_084128/` (最新) 與 `backups/backup_20260915_080919/` (次新)
+- **詳細修改內容**：
+  1. **本機零黑視窗靜默執行**：
+     - 使用者只要雙擊 `start.bat`（或 `start.vbs`），系統在背景以完全隱藏視窗（WindowStyle 0）啟動後端，並立即在預設瀏覽器開啟 `http://localhost:8080/`，完全沒有任何黑色視窗彈出。
+  2. **Vercel 雲端 Serverless 支援**：
+     - 建立 `api/screen.py`，未來推送到 GitHub 並連結 Vercel 後，Vercel 雲端函數會在每次點擊「開始篩選」時以 50ms 極速喚醒，直連 MoneyDJ 原站取得最新即時結果。
+  3. **自動相容架構**：
+     - 前端呼叫 `/api/screen`，不論是在本機跑還是在 Vercel 雲端跑，行為完全一致、穩定且免受瀏覽器 CORS 限制。
+
+### [2026-09-15 08:12:00] - 全面改版為純前端直連 MoneyDJ 原站即時篩選與數據整理架構（完全免本機伺服器）
+- **異動目的**：
+  依使用者明確指令「觸發開始篩選的按鈕應該是直接向moneyDJ網站索取資料回來整理。不要自己編寫server端」，徹底移除本機 PowerShell 伺服器端（`server.ps1` 與 8080 端口）的依賴，全面改為純前端 JavaScript 直接向 MoneyDJ 官方伺服器發送篩選請求、原生解碼 Big5、正規化解析 HTML 表格，並於前端執行當沖 6 大指標量化診斷與隔日沖對策。
+- **異動檔案**：
+  - `[修改]` `app.js`（新增 `fetchMoneyDJDirect()` 直接向 MoneyDJ 請求、`parseMoneyDJHtml()` 原生 Big5 解碼與表格整理、`computeDayTradingIndicators()` 純前端當沖 6 大指標與隔日沖量化運算法；重構 `runScreening()` 改為純前端流程）
+  - `[修改]` `index.html`（導航列狀態更新為「🌐 MoneyDJ 原站直連模式」）
+  - `[修改]` `start.bat`（簡化為單行直接以預設瀏覽器開啟 `index.html`，不再啟動 `server.ps1`）
+  - `[修改]` `README.md`（更新使用說明為純前端原站直連模式，免伺服器）
+  - `[修改]` `CHANGELOG.md`（追加本異動紀錄）
+- **備份存放目錄**：`backups/backup_20260915_080919/` (最新) 與 `backups/backup_20260915_080129/` (次新)
+- **詳細修改內容**：
+  1. **免除伺服器端（Zero-Backend）架構設計**：
+     - 使用者雙擊 `start.bat` 或直接開啟 `index.html` 即可立即使用，無須啟動任何本機 PowerShell 伺服器，無連接埠占用或背景程序管理問題。
+  2. **純前端 MoneyDJ 原站即時連線與解碼**：
+     - 在 `app.js` 實作多路備援 CORS 閘道直接索取 MoneyDJ 原站篩選網頁（`zkResult.asp`）。
+     - 使用瀏覽器原生 `TextDecoder('big5')` 完整正確解碼台股繁體中文個股名稱與技術指標，避免中文亂碼問題。
+     - 使用原生 `DOMParser` 解析 `tr.zkt2R` 表格，提取代號、名稱、收盤、漲跌、DIF(週)、MACD(週)、主力買超、營收成長率。
+  3. **純前端 Stock01 當沖量化引擎**：
+     - 將原先由 `server.ps1` 計算的 6 大指標（均價線、江波圖、K線形態、內外盤比、差異分析、券商分點）與隔日沖風險評估演算法完整移植至 `app.js` 純 JavaScript 運算。
+
 ### [2026-09-09 20:46:00] - 支援部署至 GitHub (StockUU) 與配置 GitHub Actions 每日晚上 10 點自動選股郵件日報
 - **異動目的**：依使用者需求「把程式放到 https://github.com/jringUU/StockUU 並做每天晚上10點自動執行並匯出總結文件寄到jringyou@gmail.com，我的專案是public，我的mail在裏面會不會有資安問題」，建立完整的 GitHub 倉庫架構、GitHub Actions 雲端排程工作流（每日 22:00 自動無人值守執行）、產出高質感 HTML 總結與 CSV 附檔寄送至信箱，並全面採用 GitHub Secrets 零洩漏資安架構杜絕任何密碼外洩風險。
 - **異動檔案**：

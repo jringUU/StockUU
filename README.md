@@ -61,29 +61,22 @@ GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jring
 
 ---
 
-## 🚀 本機使用方法
+## 🚀 本機與雲端使用方法
 
-### 方法一：獨立專業選股金融終端（推薦）
+### 方法一：本機極速啟動（100% 靜默無黑視窗）
 
-1. 雙擊執行目錄中的 `start.bat`。
-2. 系統會自動在背景啟動微型本機伺服器，並開啟瀏覽器：`http://localhost:8080/`
-3. 包含四大核心實戰分頁：
-   - **🏠 智慧選股**：MoneyDJ 多因子即時自選條件篩選，表格內嵌 MACD 走勢微圖，支援一鍵自選波段與匯出 CSV。
-   - **🌊 波段手法指標**：波段 6 大核心手法指標實戰檢驗表（週 MACD 金叉、均線多頭、主力鎖碼、營收月增、量價型態、月線防守 SOP）。
-   - **⚡ 當沖指標**：嚴格依據《Stock01.pdf》檢核 6 大指標（均價線、江波圖、K線形態、內外盤比、族群差異分析、券商分點主力手法）。
-   - **🏛️ 大戶隔日沖**：分析主力分點買超集中度，預防隔日開盤倒貨風險。
-4. 關閉方式：關閉彈出的 PowerShell 伺服器黑色視窗即可。
+1. 雙擊目錄中的 `start.bat`（或 `start.vbs`）。
+2. 系統會自動以完全隱藏視窗在背景提供服務，並直接開啟預設瀏覽器：`http://localhost:8080/`
+3. **完全沒有黑色命令提示字元視窗**，體驗就像開啟原生桌面應用程式！
+4. 若欲停止本機背景服務，雙擊 `stop.bat` 即可一鍵安全結束。
 
-### 方法二：本機手動執行每日選股日報與匯出
+### 方法二：部署至 Vercel 雲端免費平台（隨處可開、免開電腦）
 
-- 雙擊執行 `run_daily_report.bat`。
-- 系統會立即爬取 MoneyDJ 最新數據，並在 `output/` 目錄生成當日的 HTML 總結報告與 CSV 檔案。
-
-### 方法三：在 MoneyDJ 官方頁面直接使用（書籤工具）
-
-若您直接在 MoneyDJ 官方選股頁面：
-1. 開啟 `moneydj_bookmarklet.js`，複製全部代碼並貼入瀏覽器 Console。
-2. 點擊出現的藍色按鈕即可一鍵跳轉並取得包含指定條件的篩選結果與匯出 CSV。
+本專案已完全配置好 Vercel Serverless 架構（支援 `api/screen.py`）：
+1. 雙擊 `push_to_github.bat` 將最新程式碼推送到 GitHub。
+2. 前往 [Vercel 官網 (vercel.com)](https://vercel.com)，以 GitHub 帳號登入。
+3. 點擊 **Add New Project**，選擇您的儲存庫 `StockUU`，直接點擊 **Deploy**。
+4. 約 30 秒後即可取得專屬公開網址（例如 `https://stock-uu.vercel.app`），手機、平板、電腦隨時隨地開啟，點「開始篩選」即由雲端即時向 MoneyDJ 查詢運算！
 
 ---
 
@@ -91,6 +84,8 @@ GitHub 儲存庫：[https://github.com/jringUU/StockUU](https://github.com/jring
 
 ```text
 StockUU/
+├── api/
+│   └── screen.py               # Vercel 雲端 Serverless 函數 (Python 即時查詢 MoneyDJ)
 ├── .github/
 │   └── workflows/
 │       └── daily_report.yml    # GitHub Actions 每日 22:00 自動執行與發信工作流
@@ -99,12 +94,15 @@ StockUU/
 │   └── daily_report.ps1        # PowerShell 本機爬蟲、HTML 與 CSV 產出腳本
 ├── index.html                  # 專業金融終端選股前端介面
 ├── style.css                   # 深色主題金融終端樣式庫 (台股紅漲綠跌規範)
-├── app.js                      # 前端篩選、排序、搜尋與連動核心
-├── server.ps1                  # 本機高效能 HTTP 伺服器
-├── start.bat                   # 本機一鍵啟動終端批次檔
+├── app.js                      # 前端整合核心 (自動適配本機與 Vercel 雲端 API)
+├── vercel.json                 # Vercel 路由配置檔
+├── start.bat                   # 本機一鍵啟動批次檔 (呼叫 start.vbs 靜默啟動)
+├── start.vbs                   # 100% 靜默無黑視窗啟動腳本
+├── stop.bat                    # 本機一鍵停止背景服務批次檔
+├── push_to_github.bat          # 一鍵自動提交並推送到 GitHub 工具
 ├── run_daily_report.bat        # 本機一鍵執行日報產出批次檔
 ├── moneydj_bookmarklet.js      # MoneyDJ 官方頁面自動化工具代碼
-├── .gitignore                  # Git 忽略檔案清單 (排除備份與暫存)
+├── .gitignore                  # Git 忽略檔案清單
 ├── README.md                   # 專案說明文件與資安設定指引
 └── CHANGELOG.md                # 專案異動歷史記錄檔
 ```

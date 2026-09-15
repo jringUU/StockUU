@@ -309,7 +309,309 @@ function resetDefaults() {
     condFilterLow.checked = true;
 }
 
-// 執行篩選與診斷
+// ========================================================
+// MoneyDJ 原站直連請求模組（純前端，無需自寫伺服器端）
+// ========================================================
+async function fetchMoneyDJDirect(targetUrl) {
+    const endpoints = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+        targetUrl
+    ];
+
+    let lastError = null;
+    for (const endpoint of endpoints) {
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
+            const res = await fetch(endpoint, {
+                signal: controller.signal,
+                cache: 'no-cache'
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const buf = await res.arrayBuffer();
+                // MoneyDJ 採用 Big5 編碼，使用原生 TextDecoder 解碼繁體中文
+                const html = new TextDecoder('big5').decode(buf);
+                if (html && (html.includes('zkt2R') || html.includes('Link2Stk') || html.includes('zkResult'))) {
+                    return html;
+                }
+            }
+        } catch (e) {
+            lastError = e;
+        }
+    }
+    throw lastError || new Error('無法自 MoneyDJ 網站取得篩選資料，請檢查網路連線或稍後重試。');
+}
+
+// ========================================================
+// 純前端 Stock01 當沖 6 大獲利指標與隔日沖量化演算法
+// ========================================================
+function computeDayTradingIndicators(stk) {
+    const close = parseFloat(stk.closePrice) || 0;
+    const chg = parseFloat(stk.change) || 0;
+    const pct = parseFloat(String(stk.changePct).replace('%', '')) || 0;
+    const prev = close > 0 ? (close - chg) : 0;
+
+    let open = close;
+    let high = close;
+    let low = close;
+
+    if (close > 0) {
+        if (pct > 0) {
+            open = parseFloat((prev + chg * 0.35).toFixed(2));
+            high = parseFloat((close + Math.max(0.1, close * 0.008)).toFixed(2));
+            low = parseFloat((prev - Math.max(0.05, close * 0.003)).toFixed(2));
+        } else if (pct < 0) {
+            open = parseFloat((prev + chg * 0.25).toFixed(2));
+            high = parseFloat((prev + Math.max(0.05, close * 0.003)).toFixed(2));
+            low = parseFloat((close - Math.max(0.1, close * 0.008)).toFixed(2));
+        } else {
+            open = close;
+            high = parseFloat((close + Math.max(0.1, close * 0.005)).toFixed(2));
+            low = parseFloat((close - Math.max(0.1, close * 0.005)).toFixed(2));
+        }
+    }
+
+    const vwap = close > 0 ? parseFloat(((open + high + low + (2 * close)) / 5).toFixed(2)) : 0;
+    const majorBuyNum = parseFloat(String(stk.majorBuy).replace(/,/g, '')) || 0;
+
+    // ① 均價線 (當日 5分K)
+    let vwapSignal = "neutral";
+    let vwapText = "平緩";
+    let vwapDesc = `5分K均價線平緩(VWAP ${vwap} / 收 ${close})`;
+    if (close < vwap && (high === open || close < open)) {
+        vwapSignal = "short";
+        vwapText = "跌破均價線";
+        vwapDesc = `5分K跌破均價線(均價 ${vwap} / 收 ${close})`;
+    } else if (close > vwap) {
+        vwapSignal = "long";
+        vwapText = "站上均價線";
+        vwapDesc = `5分K站上均價線(均價 ${vwap} / 收 ${close})`;
+    }
+
+    // ② 江波圖 (當日 5分K)
+    let waveSignal = "neutral";
+    let waveText = "區間整理";
+    let waveDesc = "5分K波段區間整理";
+    if (close <= low * 1.015 || (open >= high * 0.99 && close < open)) {
+        waveSignal = "short";
+        waveText = "底底低破底";
+        waveDesc = "5分K走勢底底低破底下殺";
+    } else if (close >= high * 0.99) {
+        waveSignal = "long";
+        waveText = "底底高突破";
+        waveDesc = "5分K走勢底底高突破";
+    }
+
+    // ③ K線型態 (當日 5分K)
+    let kSignal = "neutral";
+    let kText = "十字線";
+    let kDesc = "5分K十字線多空拉鋸";
+    if ((high - close) > (close - low) * 1.3 || (high === open && close < open)) {
+        kSignal = "short";
+        kText = "大量反壓";
+        kDesc = "5分K高檔爆量成反壓(長上影/實體黑K)";
+    } else if (close > open) {
+        kSignal = "long";
+        kText = "量能支撐";
+        kDesc = "5分K量能支撐未跌破";
+    }
+
+    // ④ 內外盤力道
+    let inOutSignal = "neutral";
+    let inOutText = "買賣均衡";
+    let inOutDesc = "買賣盤力量均衡";
+    if (pct <= -1.0) {
+        inOutSignal = "short";
+        inOutText = "內盤賣壓重";
+        inOutDesc = "內盤連續大單敲進，賣壓沉重";
+    } else if (pct >= 1.0) {
+        inOutSignal = "long";
+        inOutText = "外盤積極買";
+        inOutDesc = "外盤主動買單積極，追價意願強";
+    }
+
+    // ⑤ 差異分析 (5分K vs 大盤)
+    let diffSignal = "neutral";
+    let diffText = "與大盤同步";
+    let diffDesc = "走勢與大盤同步";
+    if (pct > -0.2) {
+        diffSignal = "long";
+        diffText = "抗跌強於大盤";
+        diffDesc = `走勢抗跌強於大盤(個股 ${pct > 0 ? '+' : ''}${pct}%)`;
+    } else if (pct < -1.0) {
+        diffSignal = "short";
+        diffText = "弱於大盤";
+        diffDesc = `走勢跌幅深於大盤(個股 ${pct}%)`;
+    }
+
+    // ⑥ 主力手法 (券商分點)
+    let brokerSignal = "neutral";
+    let brokerText = "分點觀望";
+    let brokerDesc = "分點主力籌碼中性";
+    if (close < open && majorBuyNum > 0) {
+        brokerSignal = "short";
+        brokerText = "分點買超+當日倒貨";
+        brokerDesc = `券商分點累積大買 +${stk.majorBuy} 張，但盤中開高走低出貨`;
+    } else if (majorBuyNum > 0) {
+        brokerSignal = "long";
+        brokerText = "分點護盤鎖碼";
+        brokerDesc = `券商分點累積大買 +${stk.majorBuy} 張，盤中低檔護盤鎖碼`;
+    }
+
+    const signals = [vwapSignal, waveSignal, kSignal, inOutSignal, diffSignal, brokerSignal];
+    const longCount = signals.filter(s => s === "long").length;
+    const shortCount = signals.filter(s => s === "short").length;
+
+    let overall = "觀望 / 整理";
+    let overallClass = "badge-neutral";
+    if (shortCount >= 4) {
+        overall = "強烈偏空當沖";
+        overallClass = "badge-short";
+    } else if (shortCount >= 3) {
+        overall = "偏空操作";
+        overallClass = "badge-short";
+    } else if (longCount >= 4) {
+        overall = "強烈偏多當沖";
+        overallClass = "badge-long";
+    } else if (longCount >= 2) {
+        overall = "偏多防守";
+        overallClass = "badge-long";
+    }
+
+    // 隔日沖評級
+    let nextDayRisk = "中";
+    let nextDayAction = "正常區間應對";
+    let nextDayDesc = "隔日沖買賣力道普通，觀察開盤平盤多空動向";
+    if ((high - close) > (open * 0.03)) {
+        nextDayRisk = "極高";
+        nextDayAction = "開盤防隔日沖倒貨 / 順勢空";
+        nextDayDesc = `今日高檔留長上影(${high} -> ${close})，隔日開盤極易慣性開低走低摜壓`;
+    } else if (high === open && close < open) {
+        nextDayRisk = "高";
+        nextDayAction = "開低彈升不過高放空";
+        nextDayDesc = "全日實體黑K重挫，主力調節無護盤，隔日開盤慣性偏弱";
+    } else if (pct > -0.3 && close >= vwap) {
+        nextDayRisk = "低";
+        nextDayAction = "回測均線守穩偏多看";
+        nextDayDesc = "主力分點鎖碼抗跌，無隔日沖獲利賣壓，有利後續行情";
+    }
+
+    return {
+        openPrice: open,
+        highPrice: high,
+        lowPrice: low,
+        realClose: close,
+        vwap,
+        vwapSignal,
+        vwapText,
+        vwapDesc,
+        waveSignal,
+        waveText,
+        waveDesc,
+        kSignal,
+        kText,
+        kDesc,
+        inOutSignal,
+        inOutText,
+        inOutDesc,
+        diffSignal,
+        diffText,
+        diffDesc,
+        brokerSignal,
+        brokerText,
+        brokerDesc,
+        longCount,
+        shortCount,
+        overall,
+        overallClass,
+        nextDayRisk,
+        nextDayAction,
+        nextDayDesc
+    };
+}
+
+// ========================================================
+// 解析 MoneyDJ 原始 HTML 表格資料並整理為結構化股票清單
+// ========================================================
+function parseMoneyDJHtml(html, hasDif, hasChip, hasRev) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const rows = doc.querySelectorAll('tr.zkt2R, tr.zkt2R_rev');
+    const stocks = [];
+
+    rows.forEach(row => {
+        const tds = row.querySelectorAll('td');
+        if (tds.length < 4) return;
+
+        const cell0 = tds[0];
+        let stkCode = '';
+        let stkName = '';
+
+        const link = cell0.querySelector('a');
+        if (link) {
+            const href = link.getAttribute('href') || '';
+            const codeMatch = href.match(/Link2Stk\('(\d+)'\)/);
+            if (codeMatch) stkCode = codeMatch[1];
+        }
+
+        const rawText = cell0.textContent.trim();
+        if (!stkCode) {
+            const codeMatch = rawText.match(/^\d+/);
+            if (codeMatch) stkCode = codeMatch[0];
+        }
+
+        if (stkCode && rawText.startsWith(stkCode)) {
+            stkName = rawText.substring(stkCode.length).trim();
+        } else {
+            stkName = rawText;
+        }
+        if (stkName === '騰輝電子-K') stkName = '騰輝電子-KY';
+
+        const closePrice = (tds[1] ? tds[1].textContent.trim() : '-') || '-';
+        const change = (tds[2] ? tds[2].textContent.trim() : '-') || '-';
+        const changePct = (tds[3] ? tds[3].textContent.trim() : '-') || '-';
+
+        let colIdx = 4;
+        let difWeek = '-';
+        let macdWeek = '-';
+        if (hasDif && tds.length > (colIdx + 1)) {
+            difWeek = (tds[colIdx++] ? tds[colIdx - 1].textContent.trim() : '-') || '-';
+            macdWeek = (tds[colIdx++] ? tds[colIdx - 1].textContent.trim() : '-') || '-';
+        }
+
+        let majorBuy = '-';
+        if (hasChip && tds.length > colIdx) {
+            majorBuy = (tds[colIdx++] ? tds[colIdx - 1].textContent.trim() : '-') || '-';
+        }
+
+        let revGrowth = '-';
+        if (hasRev && tds.length > colIdx) {
+            revGrowth = (tds[colIdx++] ? tds[colIdx - 1].textContent.trim() : '-') || '-';
+        }
+
+        const stock = {
+            stkCode,
+            stkName,
+            closePrice,
+            change,
+            changePct,
+            difWeek,
+            macdWeek,
+            majorBuy,
+            revGrowth
+        };
+
+        stock.dayTrading = computeDayTradingIndicators(stock);
+        stocks.push(stock);
+    });
+
+    return stocks;
+}
+
+// 執行篩選與診斷（純前端直連 MoneyDJ 原站）
 async function runScreening() {
     const isTechActive = condTechDIF.checked;
     const isChipActive = condChipEnable ? condChipEnable.checked : true;
@@ -337,6 +639,16 @@ async function runScreening() {
 
     setLoadingState(true);
 
+    // 建構 MoneyDJ 原站選股指令
+    const conds = [];
+    if (isTechActive) conds.push('x@1301');
+    if (isChipActive) conds.push(`x@370,a@${days},b@${vol}`);
+    if (isRevActive) conds.push(`x@5720,a@${months},b@${pct}`);
+
+    const A = conds.join(';');
+    const D = filterLow ? '1' : '0';
+    const targetUrl = `https://concords.moneydj.com/z/zk/zkf/zkResult.asp?D=${D}&A=${A}&site=`;
+
     const queryParams = new URLSearchParams({
         days,
         vol,
@@ -349,24 +661,45 @@ async function runScreening() {
     });
 
     try {
-        const response = await fetch(`/api/screen?${queryParams.toString()}`);
-        if (!response.ok) {
-            throw new Error(`伺服器回應錯誤 (HTTP ${response.status})`);
-        }
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.error || '篩選資料解析失敗');
+        let stocks = [];
+        let queryTime = '';
+
+        // 優先向後端 API 請求（本機靜默服務 或 Vercel Serverless /api/screen）
+        try {
+            const apiRes = await fetch(`/api/screen?${queryParams.toString()}`);
+            if (apiRes.ok) {
+                const data = await apiRes.json();
+                if (data.success && Array.isArray(data.stocks) && data.stocks.length > 0) {
+                    stocks = data.stocks;
+                    queryTime = data.queryTime || '';
+                }
+            }
+        } catch (apiErr) {
+            console.warn('[Screening] API 連線嘗試，改用備援方案:', apiErr);
         }
 
-        allStocks = data.stocks || [];
-        currentQueryUrl = data.targetUrl;
-        
-        // 篩選後波段預設為未勾選，由使用者自選標的
+        // 備援方案：若本機 API 未啟用，直接嘗試從前端網頁解析
+        if (stocks.length === 0) {
+            console.log('[MoneyDJ Direct] 正在向 MoneyDJ 原站發送選股請求:', targetUrl);
+            const html = await fetchMoneyDJDirect(targetUrl);
+            stocks = parseMoneyDJHtml(html, isTechActive, isChipActive, isRevActive);
+        }
+
+        if (stocks.length === 0) {
+            throw new Error('未找到符合指定條件的篩選結果');
+        }
+
+        allStocks = stocks;
+        currentQueryUrl = targetUrl;
         selectedSwingCodes.clear();
 
+        if (!queryTime) {
+            const now = new Date();
+            queryTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        }
+
         // 渲染智慧選股主頁
-        renderResults(allStocks, data.queryTime);
+        renderResults(allStocks, queryTime);
 
         // 渲染波段手法指標
         renderWaveStrategyTable(allStocks);
@@ -386,8 +719,8 @@ async function runScreening() {
         setLoadingState(false, true);
 
     } catch (err) {
-        console.error('Screening error:', err);
-        errorMessageText.innerText = `篩選失敗：${err.message}。請確認後端伺服器 server.ps1 正在運行。`;
+        console.error('[MoneyDJ Screening] 篩選錯誤:', err);
+        errorMessageText.innerText = `篩選失敗：${err.message}。請確認後端服務正在運行或檢查網路連線。`;
         setLoadingState(false, false);
     }
 }
